@@ -9,8 +9,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import { LanguageList } from "../app-language/LanguageList";
 import { APP_VERSION } from "../app_constants";
-import { insertMindmapTemplate } from "../data/templates";
 import { insertKanbanBoard } from "../kanban/insert";
+import { insertMindmapBoard } from "../mindmap/insert";
 
 import { saveDebugState } from "./DebugCanvas";
 
@@ -69,7 +69,7 @@ export const AppMainMenu: React.FC<{
           </MainMenu.Item>
           <MainMenu.Item
             icon={mindmapIcon}
-            onSelect={() => insertMindmapTemplate(props.excalidrawAPI!)}
+            onSelect={() => insertMindmapBoard(props.excalidrawAPI!)}
           >
             Insérer un mindmap
           </MainMenu.Item>

@@ -67,6 +67,6 @@ export const EXCALIDRAW_BASE_VERSION = "0.18.0";
 
 // bump on every user-facing customization and add an entry to
 // CHANGELOG.md; reset to 1.0.0 if EXCALIDRAW_BASE_VERSION is bumped
-export const CUSTOM_VERSION = "1.13.0";
+export const CUSTOM_VERSION = "1.14.0";
 
 export const APP_VERSION = `Excalidraw-${EXCALIDRAW_BASE_VERSION}+Custom-${CUSTOM_VERSION}`;

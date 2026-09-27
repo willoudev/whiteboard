@@ -144,6 +144,7 @@ import DebugCanvas, {
 } from "./components/DebugCanvas";
 import { useSimulatedCollaborators } from "./debugCollaborators";
 import { useKanbanBoardInteractions } from "./kanban/useKanbanBoardInteractions";
+import { useMindmapInteractions } from "./mindmap/useMindmapInteractions";
 import { AIComponents } from "./components/AI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
@@ -478,6 +479,10 @@ const ExcalidrawWrapper = () => {
   // Wires up the "+"/"×" buttons, drag-between-containers reflow, and
   // resize cascade for any interactive kanban board(s) on the canvas.
   useKanbanBoardInteractions(excalidrawAPI);
+
+  // Wires up each node's "+" button and the live drag/delete cascade for
+  // any interactive mind map(s) on the canvas.
+  useMindmapInteractions(excalidrawAPI);
 
   // ---------------------------------------------------------------------------
   // Hoisted loadImages

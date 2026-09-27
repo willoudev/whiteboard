@@ -6,6 +6,29 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.14.0 — 2026-09-27
+
+- Remplace le mindmap statique (un modèle figé inséré une fois) par une
+  vraie carte mentale interactive :
+  - **Bouton "+" sur chaque idée** pour enchaîner facilement de
+    nouvelles idées à la suite (les enfants d'un même parent s'empilent
+    perpendiculairement à sa branche) ou ajouter des "idées d'idée" à
+    n'importe quelle profondeur — cliquer sur le "+" d'une sous-idée
+    crée une sous-sous-idée, sans limite de niveau.
+  - **Déplacer une idée déplace toute sa branche avec elle**, courbes de
+    connexion comprises, en direct pendant le glisser (même mécanisme
+    `onChange` continu que le kanban : la position de chaque idée est
+    comparée à sa dernière position connue, et l'écart est propagé à
+    toute sa descendance à chaque image du glisser-déposer).
+  - **Supprimer une idée** (sélection + touche Suppr, comportement
+    natif d'Excalidraw) supprime aussi toute sa branche et ses courbes,
+    pour ne pas laisser de sous-idées orphelines flottantes.
+  - Disposition radiale et couleurs par branche inspirées de l'image de
+    référence fournie : les branches partent du sujet central selon
+    l'angle doré (répartition régulière quel que soit le nombre
+    d'idées ajoutées), chaque sous-idée hérite de la couleur et de la
+    direction de sa branche.
+
 ## Excalidraw-0.18.0+Custom-1.13.0 — 2026-09-27
 
 - Refonte du moteur du kanban : les conteneurs/post-its restent
