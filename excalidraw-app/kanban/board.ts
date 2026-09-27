@@ -9,12 +9,12 @@ import type { ExcalidrawElement, ElementsMap } from "@excalidraw/element/types";
 
 import { KanbanElementsBuilder, CONTAINER_COLORS, newBoardId, newElementId } from "./elements";
 import {
-  addCardButtonLayout,
   asRect,
-  cardLayout,
   containerHeightForCardCount,
   containerX,
   deleteContainerButtonLayout,
+  reorderButtonLayout,
+  stackContainer,
   getBoardCards,
   getBoardContainers,
   getContainerCards,
@@ -24,26 +24,44 @@ import {
   CONTAINER_GAP,
   CONTAINER_WIDTH,
   ADD_CONTAINER_BUTTON_WIDTH,
+  type Rect,
 } from "./layout";
 import { isKanbanData, type KanbanCardData, type KanbanContainerData } from "./types";
+
+const byOrder = (
+  a: ExcalidrawElement,
+  b: ExcalidrawElement,
+) =>
+  (a.customData as { order: number }).order -
+  (b.customData as { order: number }).order;
 
 /** Moves/resizes an element and, crucially, its bound label text along
  * with it — Excalidraw only keeps a bound text glued to its container
  * automatically during an *interactive* drag/resize; a programmatic
  * `updateScene` that changes a container's x/y/width/height on its own
- * leaves the label exactly where it was, visibly detached from its box. */
-const moveElement = (
+ * leaves the label exactly where it was, visibly detached from its box.
+ * Only ever records an entry in `updates` when something actually
+ * changed (leaning on `newElementWith`'s own no-op detection) — this is
+ * what lets `reflowBoard` cheaply tell whether it has anything to do at
+ * all, which matters a lot once it's called from `onChange` on every
+ * keystroke/frame of a drag (see useKanbanBoardInteractions). */
+const setIfChanged = (
   elementsMap: ElementsMap,
   updates: Map<string, ExcalidrawElement>,
   element: ExcalidrawElement,
   patch: Partial<Pick<ExcalidrawElement, "x" | "y" | "width" | "height">>,
 ) => {
   const updated = newElementWith(element, patch);
-  updates.set(element.id, updated);
-  const boundText = getBoundTextElement(element, elementsMap);
-  if (boundText) {
-    const pos = computeBoundTextPosition(updated, boundText, elementsMap);
-    updates.set(boundText.id, newElementWith(boundText, { x: pos.x, y: pos.y }));
+  if (updated !== element) {
+    updates.set(element.id, updated);
+    const boundText = getBoundTextElement(element, elementsMap);
+    if (boundText) {
+      const pos = computeBoundTextPosition(updated, boundText, elementsMap);
+      const updatedText = newElementWith(boundText, { x: pos.x, y: pos.y });
+      if (updatedText !== boundText) {
+        updates.set(boundText.id, updatedText);
+      }
+    }
   }
   return updated;
 };
@@ -73,9 +91,6 @@ const bringToFront = (
   elements: readonly ExcalidrawElement[],
   ids: ReadonlySet<string>,
 ): ExcalidrawElement[] => {
-  if (ids.size === 0) {
-    return elements as ExcalidrawElement[];
-  }
   const front: ExcalidrawElement[] = [];
   const rest: ExcalidrawElement[] = [];
   for (const el of elements) {
@@ -84,116 +99,29 @@ const bringToFront = (
   return [...rest, ...front];
 };
 
-/** Recomputes every visual position/size for a board from its current
- * container order + card containerId/order assignments — the single place
- * that turns "which container is this card logically in, at what index"
- * into actual x/y/width/height. Called after every mutation (add/delete
- * container, add card, reorder-after-drag) and after a native resize of
- * the (grouped) containers finishes. */
-export const reflowBoard = (
+/** Cheap check for whether `bringToFront` would actually change
+ * anything — the last `ids.size` elements of the array already being
+ * exactly `ids` means it's a no-op. */
+const isAlreadyAtFront = (
   elements: readonly ExcalidrawElement[],
-  boardId: string,
-): ExcalidrawElement[] => {
-  const containers = getBoardContainers(elements, boardId).sort(
-    (a, b) =>
-      (a.customData as KanbanContainerData).order -
-      (b.customData as KanbanContainerData).order,
-  );
-  if (containers.length === 0) {
-    return elements as ExcalidrawElement[];
+  ids: ReadonlySet<string>,
+): boolean => {
+  if (ids.size === 0) {
+    return true;
   }
-
-  const anchor = containers[0];
-  const scale = scaleForContainerWidth(anchor.width);
-  const updates = new Map<string, ExcalidrawElement>();
-  const elementsMap: ElementsMap = new Map(elements.map((el) => [el.id, el]));
-
-  containers.forEach((container, index) => {
-    const cards = getContainerCards(elements, boardId, container.id).sort(
-      (a, b) =>
-        (a.customData as KanbanCardData).order -
-        (b.customData as KanbanCardData).order,
-    );
-    const newX = containerX(anchor.x, index, scale);
-    const newHeight = containerHeightForCardCount(cards.length, scale);
-    const rect = { x: newX, y: container.y, width: container.width, height: newHeight };
-
-    moveElement(elementsMap, updates, container, { x: newX, height: newHeight });
-
-    cards.forEach((card, cardIndex) => {
-      const layout = cardLayout(rect, cardIndex);
-      moveElement(elementsMap, updates, card, {
-        x: layout.x,
-        y: layout.y,
-        width: layout.width,
-        height: layout.height,
-      });
-    });
-
-    const addBtnLayout = addCardButtonLayout(rect, cards.length);
-    const addBtn = findByRole(elements, boardId, "addCardButton", container.id);
-    if (addBtn) {
-      moveElement(elementsMap, updates, addBtn, {
-        x: addBtnLayout.x,
-        y: addBtnLayout.y,
-        width: addBtnLayout.width,
-        height: addBtnLayout.height,
-      });
-    }
-
-    const delBtnLayout = deleteContainerButtonLayout(rect);
-    const delBtn = findByRole(
-      elements,
-      boardId,
-      "deleteContainerButton",
-      container.id,
-    );
-    if (delBtn) {
-      moveElement(elementsMap, updates, delBtn, {
-        x: delBtnLayout.x,
-        y: delBtnLayout.y,
-        width: delBtnLayout.width,
-        height: delBtnLayout.height,
-      });
-    }
-  });
-
-  const lastRect = (() => {
-    const last = containers[containers.length - 1];
-    const updated = updates.get(last.id) ?? last;
-    return asRect(updated);
-  })();
-  const addContainerBtn = findByRole(elements, boardId, "addContainerButton");
-  if (addContainerBtn) {
-    moveElement(elementsMap, updates, addContainerBtn, {
-      x: lastRect.x + lastRect.width + CONTAINER_GAP * scale,
-      y: lastRect.y,
-      width: ADD_CONTAINER_BUTTON_WIDTH * scale,
-      height: lastRect.height > 0 ? Math.min(lastRect.height, 64 * scale) : 64 * scale,
-    });
-  }
-
-  const next = applyUpdates(elements, updates, []);
-
-  // Cards must always paint above every container of this board — see
-  // `bringToFront`'s doc comment. Re-asserted on every reflow (not just
-  // after a drag) so this holds regardless of what caused it.
-  const cardAndLabelIds = new Set<string>();
-  const nextElementsMap: ElementsMap = new Map(next.map((el) => [el.id, el]));
-  for (const card of getBoardCards(next, boardId)) {
-    cardAndLabelIds.add(card.id);
-    const boundText = getBoundTextElement(card, nextElementsMap);
-    if (boundText) {
-      cardAndLabelIds.add(boundText.id);
-    }
-  }
-  return bringToFront(next, cardAndLabelIds);
+  const tail = elements.slice(elements.length - ids.size);
+  return tail.length === ids.size && tail.every((el) => ids.has(el.id));
 };
 
 const findByRole = (
   elements: readonly ExcalidrawElement[],
   boardId: string,
-  role: "addCardButton" | "deleteContainerButton" | "addContainerButton",
+  role:
+    | "addCardButton"
+    | "deleteContainerButton"
+    | "addContainerButton"
+    | "moveContainerLeftButton"
+    | "moveContainerRightButton",
   containerId?: string,
 ) =>
   elements.find(
@@ -205,6 +133,121 @@ const findByRole = (
       (role === "addContainerButton" ||
         (el.customData as any).containerId === containerId),
   );
+
+/** Recomputes every visual position/size for a board from its current
+ * container order + card containerId/order assignments — the single
+ * place that turns "which container is this card logically in, at what
+ * index" into actual x/y/width/height. Cards are stacked using their
+ * own *current* height rather than a fixed formula, so one that grew
+ * taller (its bound text wrapped to more lines) pushes the ones below
+ * it down instead of overlapping them.
+ *
+ * Called continuously from `onChange` (see useKanbanBoardInteractions)
+ * so containers/cards stay in sync live — while dragging the
+ * containers-group, while resizing it, and while a card's text is being
+ * edited — not just once some interaction ends. Returns the exact same
+ * `elements` reference when nothing actually needs to change, which is
+ * what lets the caller skip a redundant `updateScene` (and thus avoid
+ * looping back into `onChange` for no reason).
+ *
+ * `excludeCardId` skips writing new geometry for one specific card
+ * (without excluding it from the stack itself — its slot still counts
+ * toward its siblings' positions) — used while that card is actively
+ * being dragged by the user, so this doesn't fight that drag. */
+export const reflowBoard = (
+  elements: readonly ExcalidrawElement[],
+  boardId: string,
+  opts?: { excludeCardId?: string },
+): ExcalidrawElement[] => {
+  const containers = getBoardContainers(elements, boardId).sort(byOrder);
+  if (containers.length === 0) {
+    return elements as ExcalidrawElement[];
+  }
+
+  const anchor = containers[0];
+  const scale = scaleForContainerWidth(anchor.width);
+  const updates = new Map<string, ExcalidrawElement>();
+  const elementsMap: ElementsMap = new Map(elements.map((el) => [el.id, el]));
+
+  let lastRect: Rect = asRect(anchor);
+
+  containers.forEach((container, index) => {
+    const cards = getContainerCards(elements, boardId, container.id).sort(
+      (a, b) =>
+        (a.customData as KanbanCardData).order -
+        (b.customData as KanbanCardData).order,
+    );
+    const newX = containerX(anchor.x, index, scale);
+    const cardHeights = cards.map((c) => c.height);
+    const { cardPositions, addButtonLayout, containerHeight } = stackContainer(
+      { x: newX, y: container.y, width: container.width, height: container.height },
+      cardHeights,
+    );
+    const rect: Rect = { x: newX, y: container.y, width: container.width, height: containerHeight };
+
+    setIfChanged(elementsMap, updates, container, { x: newX, height: containerHeight });
+
+    cards.forEach((card, cardIndex) => {
+      if (opts?.excludeCardId === card.id) {
+        return;
+      }
+      const pos = cardPositions[cardIndex];
+      setIfChanged(elementsMap, updates, card, { x: pos.x, y: pos.y, width: pos.width });
+    });
+
+    const addBtn = findByRole(elements, boardId, "addCardButton", container.id);
+    if (addBtn) {
+      setIfChanged(elementsMap, updates, addBtn, addButtonLayout);
+    }
+
+    const delBtn = findByRole(elements, boardId, "deleteContainerButton", container.id);
+    if (delBtn) {
+      setIfChanged(elementsMap, updates, delBtn, deleteContainerButtonLayout(rect));
+    }
+
+    const leftBtn = findByRole(elements, boardId, "moveContainerLeftButton", container.id);
+    if (leftBtn) {
+      setIfChanged(elementsMap, updates, leftBtn, reorderButtonLayout(rect, "left"));
+    }
+    const rightBtn = findByRole(elements, boardId, "moveContainerRightButton", container.id);
+    if (rightBtn) {
+      setIfChanged(elementsMap, updates, rightBtn, reorderButtonLayout(rect, "right"));
+    }
+
+    if (index === containers.length - 1) {
+      lastRect = rect;
+    }
+  });
+
+  const addContainerBtn = findByRole(elements, boardId, "addContainerButton");
+  if (addContainerBtn) {
+    setIfChanged(elementsMap, updates, addContainerBtn, {
+      x: lastRect.x + lastRect.width + CONTAINER_GAP * scale,
+      y: lastRect.y,
+      width: ADD_CONTAINER_BUTTON_WIDTH * scale,
+      height: lastRect.height > 0 ? Math.min(lastRect.height, 64 * scale) : 64 * scale,
+    });
+  }
+
+  // Cards must always paint above every container of this board — see
+  // `bringToFront`'s doc comment.
+  const cardAndLabelIds = new Set<string>();
+  for (const card of getBoardCards(elements, boardId)) {
+    cardAndLabelIds.add(card.id);
+    const boundText = getBoundTextElement(card, elementsMap);
+    if (boundText) {
+      cardAndLabelIds.add(boundText.id);
+    }
+  }
+  const needsReorder = !isAlreadyAtFront(elements, cardAndLabelIds);
+
+  if (updates.size === 0 && !needsReorder) {
+    return elements as ExcalidrawElement[];
+  }
+
+  const next = applyUpdates(elements, updates, []);
+  return needsReorder ? bringToFront(next, cardAndLabelIds) : next;
+};
 
 export const buildInitialBoardElements = (
   cx: number,
@@ -266,6 +309,20 @@ export const buildInitialBoardElements = (
       containerId,
       container: containerRect,
     });
+    builder.addReorderButton({
+      id: newElementId(),
+      boardId,
+      containerId,
+      container: containerRect,
+      which: "left",
+    });
+    builder.addReorderButton({
+      id: newElementId(),
+      boardId,
+      containerId,
+      container: containerRect,
+      which: "right",
+    });
   });
 
   const lastX = containerX(boardX, columns.length - 1);
@@ -322,7 +379,9 @@ export const deleteContainer = (
     }
     if (
       (el.customData.role === "addCardButton" ||
-        el.customData.role === "deleteContainerButton") &&
+        el.customData.role === "deleteContainerButton" ||
+        el.customData.role === "moveContainerLeftButton" ||
+        el.customData.role === "moveContainerRightButton") &&
       el.customData.containerId === containerId
     ) {
       toDelete.add(el.id);
@@ -340,11 +399,7 @@ export const deleteContainer = (
 
   const remainingContainers = getBoardContainers(elements, boardId)
     .filter((c) => c.id !== containerId)
-    .sort(
-      (a, b) =>
-        (a.customData as KanbanContainerData).order -
-        (b.customData as KanbanContainerData).order,
-    );
+    .sort(byOrder);
 
   const updates = new Map<string, ExcalidrawElement>();
   for (const el of elements) {
@@ -402,10 +457,65 @@ export const addContainer = (
     containerId,
     container: containerRect,
   });
+  builder.addReorderButton({
+    id: newElementId(),
+    boardId,
+    containerId,
+    container: containerRect,
+    which: "left",
+  });
+  builder.addReorderButton({
+    id: newElementId(),
+    boardId,
+    containerId,
+    container: containerRect,
+    which: "right",
+  });
 
   const withNewContainer = [...elements, ...builder.build()];
   return reflowBoard(withNewContainer, boardId);
 };
+
+const swapContainerOrder = (
+  elements: readonly ExcalidrawElement[],
+  boardId: string,
+  containerId: string,
+  direction: -1 | 1,
+): ExcalidrawElement[] => {
+  const containers = getBoardContainers(elements, boardId).sort(byOrder);
+  const index = containers.findIndex((c) => c.id === containerId);
+  const otherIndex = index + direction;
+  if (index === -1 || otherIndex < 0 || otherIndex >= containers.length) {
+    return elements as ExcalidrawElement[];
+  }
+  const a = containers[index];
+  const b = containers[otherIndex];
+  const aOrder = (a.customData as KanbanContainerData).order;
+  const bOrder = (b.customData as KanbanContainerData).order;
+  const updates = new Map<string, ExcalidrawElement>([
+    [a.id, newElementWith(a, { customData: { ...(a.customData as KanbanContainerData), order: bOrder } })],
+    [b.id, newElementWith(b, { customData: { ...(b.customData as KanbanContainerData), order: aOrder } })],
+  ]);
+  return reflowBoard(applyUpdates(elements, updates, []), boardId);
+};
+
+/** Swaps a container with its left/right neighbor — containers are one
+ * native Excalidraw group per board (so the whole row can be dragged or
+ * resized as a unit, and a native group-selection can't single out one
+ * member for an ordinary click-drag the way an ungrouped card can), so
+ * reordering them goes through these dedicated buttons instead of a
+ * drag gesture. */
+export const moveContainerLeft = (
+  elements: readonly ExcalidrawElement[],
+  boardId: string,
+  containerId: string,
+) => swapContainerOrder(elements, boardId, containerId, -1);
+
+export const moveContainerRight = (
+  elements: readonly ExcalidrawElement[],
+  boardId: string,
+  containerId: string,
+) => swapContainerOrder(elements, boardId, containerId, 1);
 
 /** Called once a card drag finishes: figures out which container the card
  * was dropped into (by its current center point) and where among that
@@ -472,25 +582,4 @@ export const reorderCardAfterDrag = (
 
   const next = applyUpdates(elements, updates, []);
   return reflowBoard(next, boardId);
-};
-
-/** Shifts every card belonging to this board by (dx, dy) — used to keep
- * cards visually attached when the (grouped) containers are dragged as a
- * whole, since cards deliberately aren't part of that native group (so
- * they stay individually, single-click draggable between containers). */
-export const translateBoardCards = (
-  elements: readonly ExcalidrawElement[],
-  boardId: string,
-  dx: number,
-  dy: number,
-): ExcalidrawElement[] => {
-  if (dx === 0 && dy === 0) {
-    return elements as ExcalidrawElement[];
-  }
-  const updates = new Map<string, ExcalidrawElement>();
-  const elementsMap: ElementsMap = new Map(elements.map((el) => [el.id, el]));
-  for (const card of getBoardCards(elements, boardId)) {
-    moveElement(elementsMap, updates, card, { x: card.x + dx, y: card.y + dy });
-  }
-  return applyUpdates(elements, updates, []);
 };

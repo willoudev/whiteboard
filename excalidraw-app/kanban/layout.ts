@@ -80,6 +80,54 @@ export const deleteContainerButtonLayout = (container: Rect) => {
   };
 };
 
+/** Order-swap arrows, top-left of the header — mirrors the delete "×" at
+ * top-right. */
+export const reorderButtonLayout = (
+  container: Rect,
+  which: "left" | "right",
+) => {
+  const scale = scaleForContainerWidth(container.width);
+  const size = BUTTON_SIZE * scale;
+  return {
+    x: container.x + 8 * scale + (which === "right" ? size + 4 * scale : 0),
+    y: container.y + 8 * scale,
+    width: size,
+    height: size,
+  };
+};
+
+/** Stacks cards top-to-bottom using each card's *own current* height
+ * (rather than a fixed formula), so a card that grew taller — its bound
+ * text wrapped to more lines — pushes the ones below it down instead of
+ * overlapping them. Width still tracks the container (cards stay
+ * column-width, only height is content-driven). Only `x`/`y`/`width` are
+ * proposed per card; height is deliberately left alone by the caller. */
+export const stackContainer = (
+  container: Rect,
+  cardHeights: readonly number[],
+) => {
+  const scale = scaleForContainerWidth(container.width);
+  const cardX = container.x + CONTAINER_PADDING * scale;
+  const cardWidth = container.width - CONTAINER_PADDING * 2 * scale;
+  let cursorY = container.y + CONTAINER_HEADER_HEIGHT * scale;
+  const cardPositions = cardHeights.map((height) => {
+    const pos = { x: cardX, y: cursorY, width: cardWidth };
+    cursorY += height + CARD_GAP * scale;
+    return pos;
+  });
+  const addButtonLayout = {
+    x: cardX,
+    y: cursorY,
+    width: cardWidth,
+    height: BUTTON_SIZE * scale,
+  };
+  const containerHeight = Math.max(
+    CONTAINER_MIN_HEIGHT * scale,
+    cursorY + BUTTON_SIZE * scale + CONTAINER_PADDING * scale - container.y,
+  );
+  return { cardPositions, addButtonLayout, containerHeight };
+};
+
 export const containerHeightForCardCount = (n: number, scale = 1) =>
   Math.max(
     CONTAINER_MIN_HEIGHT * scale,

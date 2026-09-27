@@ -6,6 +6,34 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.13.0 — 2026-09-27
+
+- Refonte du moteur du kanban : les conteneurs/post-its restent
+  synchronisés en continu (abonnement `onChange`) plutôt que seulement
+  au relâchement d'une interaction. Trois changements de comportement
+  demandés :
+  - **Un post-it dont le texte s'allonge repousse ceux du dessous** :
+    la hauteur d'un post-it n'est plus imposée par une formule fixe,
+    elle suit sa hauteur réelle (qui grandit toute seule quand le texte
+    passe à la ligne plusieurs fois) ; les post-its suivants de la
+    colonne se réempilent en conséquence, et le conteneur s'agrandit
+    pour tout contenir.
+  - **Déplacer la structure du kanban déplace les post-its en même
+    temps**, en direct pendant le glisser (avant, ils restaient figés
+    et ne se replaçaient qu'au relâchement).
+  - **On peut changer l'ordre des conteneurs** via deux nouvelles
+    flèches "◀"/"▶" en haut à gauche de chaque colonne (les conteneurs
+    restant un seul groupe Excalidraw natif pour pouvoir déplacer/
+    redimensionner toute la structure d'un coup, un simple
+    cliquer-glisser ne peut pas isoler un conteneur pour le réordonner
+    — contrairement aux post-its, volontairement hors de ce groupe).
+  - ⚠️ Contrepartie du premier point : la largeur d'un post-it suit
+    toujours le redimensionnement de sa colonne, mais sa hauteur ne
+    grandit plus proportionnellement avec elle (elle ne dépend que du
+    texte) — sinon un post-it déjà agrandi par du texte long aurait sa
+    hauteur recalculée de façon imprévisible à chaque redimensionnement
+    de la structure.
+
 ## Excalidraw-0.18.0+Custom-1.12.0 — 2026-09-27
 
 - Remplace le kanban statique (inséré une fois, puis de simples formes

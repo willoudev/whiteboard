@@ -41,12 +41,20 @@ export type KanbanAddContainerButtonData = {
   role: "addContainerButton";
 };
 
+export type KanbanReorderContainerButtonData = {
+  kanban: true;
+  boardId: string;
+  role: "moveContainerLeftButton" | "moveContainerRightButton";
+  containerId: string;
+};
+
 export type KanbanElementData =
   | KanbanContainerData
   | KanbanCardData
   | KanbanAddCardButtonData
   | KanbanDeleteContainerButtonData
-  | KanbanAddContainerButtonData;
+  | KanbanAddContainerButtonData
+  | KanbanReorderContainerButtonData;
 
 export const isKanbanData = (data: unknown): data is KanbanElementData =>
   !!data && typeof data === "object" && (data as any).kanban === true;

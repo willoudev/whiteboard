@@ -9,6 +9,7 @@ import {
   addCardButtonLayout,
   cardLayout,
   deleteContainerButtonLayout,
+  reorderButtonLayout,
   CONTAINER_WIDTH,
   ADD_CONTAINER_BUTTON_WIDTH,
   ADD_CONTAINER_BUTTON_HEIGHT,
@@ -164,6 +165,46 @@ export class KanbanElementsBuilder {
         kanban: true,
         boardId: opts.boardId,
         role: "deleteContainerButton",
+        containerId: opts.containerId,
+      },
+      locked: true,
+      groupIds: [opts.boardId],
+    });
+    return opts.id;
+  }
+
+  addReorderButton(opts: {
+    id: string;
+    boardId: string;
+    containerId: string;
+    container: Rect;
+    which: "left" | "right";
+  }) {
+    const rect = reorderButtonLayout(opts.container, opts.which);
+    this.skeleton.push({
+      type: "rectangle",
+      id: opts.id,
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      backgroundColor: "transparent",
+      strokeColor: "#868e96",
+      roundness: { type: 3 },
+      label: {
+        text: opts.which === "left" ? "◀" : "▶",
+        fontSize: 14,
+        textAlign: "center",
+      },
+    });
+    this.tags.set(opts.id, {
+      customData: {
+        kanban: true,
+        boardId: opts.boardId,
+        role:
+          opts.which === "left"
+            ? "moveContainerLeftButton"
+            : "moveContainerRightButton",
         containerId: opts.containerId,
       },
       locked: true,

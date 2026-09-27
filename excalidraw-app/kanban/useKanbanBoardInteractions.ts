@@ -1,6 +1,6 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { viewportCoordsToSceneCoords } from "@excalidraw/common";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
@@ -9,46 +9,45 @@ import {
   addCardToContainer,
   addContainer,
   deleteContainer,
+  moveContainerLeft,
+  moveContainerRight,
   reflowBoard,
   reorderCardAfterDrag,
-  translateBoardCards,
 } from "./board";
-import { asRect, containersBoundingBox, rectContains } from "./layout";
+import { asRect, rectContains } from "./layout";
 import { isKanbanData } from "./types";
 
-type ContainerInteraction = {
-  boardId: string;
-  kind: "move" | "resize";
-  beforeBox: { x: number; y: number; width: number; height: number };
-};
-
 /** Wires the kanban boards on the canvas up to real interactions:
- * - the "+"/"×"/"+ Conteneur" buttons are real (locked) scene elements, so
- *   we hit-test them ourselves from the raw pointer position on
- *   pointerdown (Excalidraw doesn't report a `hit.element` for locked
- *   elements, which is otherwise exactly what we want — it keeps them
- *   inert to normal selection/dragging/deletion).
- * - cards are deliberately NOT part of the containers' native group (so a
- *   single click-drag can move just one card between containers); on
+ * - the "+"/"×"/"◀"/"▶"/"+ Conteneur" buttons are real (locked) scene
+ *   elements, so we hit-test them ourselves from the raw pointer
+ *   position on pointerdown (Excalidraw doesn't report a `hit.element`
+ *   for locked elements, which is otherwise exactly what we want — it
+ *   keeps them inert to normal selection/dragging/deletion).
+ * - cards are deliberately NOT part of the containers' native group (so
+ *   a single click-drag can move just one card between columns); on
  *   pointerup we figure out which container it was dropped into and
- *   restack both the source and destination containers.
- * - containers ARE one native Excalidraw group per board, so dragging or
- *   resizing any one of them moves/scales the whole row together; since
- *   cards sit outside that group we cascade the same move/rescale to them
- *   on pointerup (translate on a plain drag, full reflow — which derives
- *   every card's size from its container's now-live width — on resize). */
+ *   restack both the source and destination columns.
+ * - everything else — a container being dragged or resized (containers
+ *   ARE one native Excalidraw group per board, so grabbing any one of
+ *   them moves/scales the whole row together), or a card's bound text
+ *   wrapping to more lines as it's edited — is kept in sync through a
+ *   continuous `onChange` subscription rather than one-off pointer
+ *   handlers. `reflowBoard` is a no-op (returns the exact same
+ *   reference) once nothing is actually out of sync, so re-running it on
+ *   every scene change is cheap and converges instead of looping: this
+ *   is what makes the cards visibly follow along *while* the containers
+ *   are still being dragged/resized (not just once you let go), and
+ *   what pushes cards below a taller one down as its text grows. */
 export const useKanbanBoardInteractions = (
   excalidrawAPI: ExcalidrawImperativeAPI | null,
 ) => {
-  const interactionRef = useRef<ContainerInteraction | null>(null);
-
   useEffect(() => {
     if (!excalidrawAPI) {
       return;
     }
 
     const unsubscribeDown = excalidrawAPI.onPointerDown(
-      (_activeTool, pointerDownState, event) => {
+      (_activeTool, _pointerDownState, event) => {
         const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
         const appState = excalidrawAPI.getAppState();
         const scenePoint = viewportCoordsToSceneCoords(
@@ -61,11 +60,11 @@ export const useKanbanBoardInteractions = (
             continue;
           }
           const data = el.customData;
+          if (!rectContains(asRect(el), scenePoint)) {
+            continue;
+          }
 
-          if (
-            data.role === "addCardButton" &&
-            rectContains(asRect(el), scenePoint)
-          ) {
+          if (data.role === "addCardButton") {
             excalidrawAPI.updateScene({
               elements: addCardToContainer(
                 elements,
@@ -77,10 +76,7 @@ export const useKanbanBoardInteractions = (
             return;
           }
 
-          if (
-            data.role === "deleteContainerButton" &&
-            rectContains(asRect(el), scenePoint)
-          ) {
+          if (data.role === "deleteContainerButton") {
             if (
               window.confirm(
                 "Supprimer ce conteneur et toutes ses tâches ?",
@@ -98,135 +94,112 @@ export const useKanbanBoardInteractions = (
             return;
           }
 
-          if (
-            data.role === "addContainerButton" &&
-            rectContains(asRect(el), scenePoint)
-          ) {
+          if (data.role === "addContainerButton") {
             excalidrawAPI.updateScene({
               elements: addContainer(elements, data.boardId),
               captureUpdate: CaptureUpdateAction.IMMEDIATELY,
             });
             return;
           }
-        }
 
-        // A resize-handle drag doesn't report a `hit.element` at all (the
-        // handle isn't a scene element) — find which board is being
-        // resized from the *selection* instead, which already holds the
-        // whole containers-group by the time a handle is grabbed.
-        let boardContainer: ExcalidrawElement | undefined;
-        if (pointerDownState.resize.isResizing) {
-          const selectedIds = appState.selectedElementIds;
-          boardContainer = elements.find(
-            (el) =>
-              selectedIds[el.id] &&
-              isKanbanData(el.customData) &&
-              el.customData.role === "container",
-          );
-        } else {
-          const hit = pointerDownState.hit.element;
-          boardContainer =
-            hit && isKanbanData(hit.customData) && hit.customData.role === "container"
-              ? hit
-              : undefined;
-        }
+          if (data.role === "moveContainerLeftButton") {
+            excalidrawAPI.updateScene({
+              elements: moveContainerLeft(
+                elements,
+                data.boardId,
+                data.containerId,
+              ),
+              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+            });
+            return;
+          }
 
-        if (boardContainer) {
-          const boardId = (boardContainer.customData as { boardId: string }).boardId;
-          const box = containersBoundingBox(elements, boardId);
-          interactionRef.current = box
-            ? {
-                boardId,
-                kind: pointerDownState.resize.isResizing ? "resize" : "move",
-                beforeBox: box,
-              }
-            : null;
-        } else {
-          interactionRef.current = null;
+          if (data.role === "moveContainerRightButton") {
+            excalidrawAPI.updateScene({
+              elements: moveContainerRight(
+                elements,
+                data.boardId,
+                data.containerId,
+              ),
+              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+            });
+            return;
+          }
         }
       },
     );
 
     const unsubscribeUp = excalidrawAPI.onPointerUp((_activeTool, pointerDownState) => {
-      const isResizing = pointerDownState.resize.isResizing;
-      // `drag.hasOccurred` tracks whether a *position* drag happened —
-      // it stays false throughout a resize (a distinct interaction kind
-      // from Excalidraw's point of view), so a resize needs its own
-      // check here or this bails out before the cascade below ever runs.
-      if (!pointerDownState.drag.hasOccurred && !isResizing) {
-        interactionRef.current = null;
+      if (!pointerDownState.drag.hasOccurred) {
         return;
       }
 
       const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
       const appState = excalidrawAPI.getAppState();
+      const selectedIds = Object.keys(appState.selectedElementIds);
+      const draggedCard =
+        selectedIds.length === 1
+          ? elements.find((el) => el.id === selectedIds[0])
+          : pointerDownState.hit.element;
 
-      if (!isResizing && pointerDownState.drag.hasOccurred) {
+      if (
+        draggedCard &&
+        !draggedCard.isDeleted &&
+        isKanbanData(draggedCard.customData) &&
+        draggedCard.customData.role === "card"
+      ) {
+        excalidrawAPI.updateScene({
+          elements: reorderCardAfterDrag(
+            elements,
+            draggedCard.customData.boardId,
+            draggedCard.id,
+          ),
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+      }
+    });
+
+    const unsubscribeChange = excalidrawAPI.onChange((elements, appState) => {
+      const boardIds = new Set<string>();
+      for (const el of elements) {
+        if (!el.isDeleted && isKanbanData(el.customData)) {
+          boardIds.add(el.customData.boardId);
+        }
+      }
+      if (boardIds.size === 0) {
+        return;
+      }
+
+      // Don't fight a card the user is actively dragging right now —
+      // let it follow the pointer freely; reorderCardAfterDrag (above)
+      // takes over the instant it's dropped.
+      let draggingCardId: string | undefined;
+      if (appState.selectedElementsAreBeingDragged) {
         const selectedIds = Object.keys(appState.selectedElementIds);
-        const draggedCard =
-          selectedIds.length === 1
-            ? elements.find((el) => el.id === selectedIds[0])
-            : pointerDownState.hit.element;
-
-        if (
-          draggedCard &&
-          !draggedCard.isDeleted &&
-          isKanbanData(draggedCard.customData) &&
-          draggedCard.customData.role === "card"
-        ) {
-          excalidrawAPI.updateScene({
-            elements: reorderCardAfterDrag(
-              elements,
-              draggedCard.customData.boardId,
-              draggedCard.id,
-            ),
-            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-          });
+        if (selectedIds.length === 1) {
+          const el = elements.find((e) => e.id === selectedIds[0]);
+          if (el && isKanbanData(el.customData) && el.customData.role === "card") {
+            draggingCardId = el.id;
+          }
         }
       }
 
-      const interaction = interactionRef.current;
-      interactionRef.current = null;
-      if (interaction) {
-        // The native resize/move commit isn't necessarily flushed into the
-        // scene yet at the exact moment this pointerup listener runs —
-        // reading it synchronously here can still see the pre-drag
-        // geometry, so the cascade would compute from stale sizes/
-        // positions. Deferring one tick lets Excalidraw's own commit land
-        // first.
-        window.setTimeout(() => {
-          const freshElements = excalidrawAPI.getSceneElementsIncludingDeleted();
-          if (interaction.kind === "resize") {
-            excalidrawAPI.updateScene({
-              elements: reflowBoard(freshElements, interaction.boardId),
-              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-            });
-          } else {
-            const afterBox = containersBoundingBox(
-              freshElements,
-              interaction.boardId,
-            );
-            if (afterBox) {
-              const dx = afterBox.x - interaction.beforeBox.x;
-              const dy = afterBox.y - interaction.beforeBox.y;
-              excalidrawAPI.updateScene({
-                elements: translateBoardCards(
-                  freshElements,
-                  interaction.boardId,
-                  dx,
-                  dy,
-                ),
-                captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-              });
-            }
-          }
-        }, 0);
+      let next: readonly ExcalidrawElement[] = elements;
+      for (const boardId of boardIds) {
+        next = reflowBoard(next, boardId, { excludeCardId: draggingCardId });
+      }
+      if (next !== elements) {
+        excalidrawAPI.updateScene({
+          elements: next as ExcalidrawElement[],
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
       }
     });
 
     return () => {
       unsubscribeDown();
       unsubscribeUp();
+      unsubscribeChange();
     };
   }, [excalidrawAPI]);
 };
