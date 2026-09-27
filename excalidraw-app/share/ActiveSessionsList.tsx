@@ -4,10 +4,7 @@ import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import { fetchActiveRooms, type ActiveRoom } from "../data/activeRooms";
 import { listStoredRooms, type StoredRoom } from "../data/firebase";
-import {
-  getSessionHistory,
-  type SessionHistoryEntry,
-} from "../data/SessionHistory";
+import { getSessionHistory } from "../data/SessionHistory";
 
 import "./ActiveSessionsList.scss";
 
@@ -67,47 +64,8 @@ export const ActiveSessionsList = () => {
     );
   }
 
-  const activeRoomIds = new Set(activeRooms.map((room) => room.roomId));
-  const myActiveSessions: SessionHistoryEntry[] = getSessionHistory().filter(
-    (entry) => activeRoomIds.has(entry.roomId),
-  );
-
   return (
     <div className="ActiveSessionsList">
-      <div className="ActiveSessionsList__section">
-        <div className="ActiveSessionsList__header">Mes sessions actives</div>
-        {myActiveSessions.length === 0 ? (
-          <div className="ActiveSessionsList__empty">
-            Aucune de tes sessions récentes n'est active en ce moment.
-          </div>
-        ) : (
-          <ul className="ActiveSessionsList__list">
-            {myActiveSessions.map((entry) => {
-              const room = activeRooms.find((r) => r.roomId === entry.roomId);
-              return (
-                <li key={entry.roomId}>
-                  <button
-                    type="button"
-                    className="ActiveSessionsList__item ActiveSessionsList__item--clickable"
-                    onClick={() => {
-                      window.location.href = entry.link;
-                    }}
-                  >
-                    <span className="ActiveSessionsList__item__name">
-                      {room?.name ?? `${entry.roomId.slice(0, 8)}…`}
-                    </span>
-                    <span className="ActiveSessionsList__item__count">
-                      {room?.count ?? 0} participant
-                      {(room?.count ?? 0) > 1 ? "s" : ""}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
       <div className="ActiveSessionsList__section">
         <div className="ActiveSessionsList__header">
           Toutes les sessions actives sur le serveur

@@ -20,9 +20,9 @@ import { useEffect, useRef, useState } from "react";
 import { atom, useAtom, useAtomValue } from "../app-jotai";
 import { activeRoomInfoAtom, activeRoomLinkAtom } from "../collab/Collab";
 import { fetchActiveRooms, verifyAccessCode } from "../data/activeRooms";
-import { getCollaborationLinkData } from "../data";
 
 import { ActiveSessionsList } from "./ActiveSessionsList";
+import { MySessionsList } from "./MySessionsList";
 
 import type { ActiveRoom } from "../data/activeRooms";
 
@@ -201,41 +201,54 @@ const ActiveRoomDialog = ({
           </span>
           {t("roomDialog.desc_privacy")}
         </p>
-        <p>{t("roomDialog.desc_exitSession")}</p>
         <p>
-          "Fermer pour tout le monde" met en revanche fin à la session pour
-          tous les participants connectés.
+          <strong>Quitter la session :</strong> {t("roomDialog.desc_exitSession")}
+        </p>
+        <p>
+          <strong>Fermer pour tout le monde :</strong> met fin à la session
+          pour tous les participants connectés.
         </p>
       </div>
 
       <div
         className="ShareDialog__active__actions"
-        style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.75rem",
+        }}
       >
         <FilledButton
           size="large"
-          variant="outlined"
-          label="Sortir"
-          onClick={() => {
-            trackEvent("share", "room left");
-            collabAPI.stopCollaboration(false);
-            if (!collabAPI.isCollaborating()) {
+          label="Fermer (continuer à dessiner)"
+          onClick={handleClose}
+        />
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <FilledButton
+            size="large"
+            variant="outlined"
+            label="Quitter la session"
+            onClick={() => {
+              trackEvent("share", "room left");
+              collabAPI.stopCollaboration(false);
+              if (!collabAPI.isCollaborating()) {
+                handleClose();
+              }
+            }}
+          />
+          <FilledButton
+            size="large"
+            variant="outlined"
+            color="danger"
+            label="Fermer pour tout le monde"
+            icon={playerStopFilledIcon}
+            onClick={() => {
+              trackEvent("share", "room closed for everyone");
+              collabAPI.closeRoomForEveryone();
               handleClose();
-            }
-          }}
-        />
-        <FilledButton
-          size="large"
-          variant="outlined"
-          color="danger"
-          label="Fermer pour tout le monde"
-          icon={playerStopFilledIcon}
-          onClick={() => {
-            trackEvent("share", "room closed for everyone");
-            collabAPI.closeRoomForEveryone();
-            handleClose();
-          }}
-        />
+            }}
+          />
+        </div>
       </div>
     </>
   );
@@ -251,9 +264,6 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   const [creatorNameInput, setCreatorNameInput] = useState(
     () => collabAPI?.getUsername() ?? "",
   );
-  const [joinLinkInput, setJoinLinkInput] = useState("");
-  const [joinError, setJoinError] = useState<string | null>(null);
-
   const [codeRooms, setCodeRooms] = useState<ActiveRoom[] | null>(null);
   const [codeRoomsLoading, setCodeRoomsLoading] = useState(false);
   const [codeRoomId, setCodeRoomId] = useState("");
@@ -323,23 +333,6 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
     });
   };
 
-  const handleJoin = () => {
-    const link = joinLinkInput.trim();
-    if (!link) {
-      return;
-    }
-    try {
-      const data = getCollaborationLinkData(link);
-      if (!data) {
-        setJoinError("Ce lien ne contient pas de session de collaboration.");
-        return;
-      }
-      window.location.href = link;
-    } catch {
-      setJoinError("Lien invalide.");
-    }
-  };
-
   const handleJoinWithCode = async () => {
     const code = codeInput.trim();
     if (!codeRoomId || !code || codeVerifying) {
@@ -388,6 +381,8 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
         />
       </div>
 
+      <MySessionsList />
+
       {mode === "starting" && (
         <div
           className="ShareDialog__picker__form"
@@ -421,27 +416,10 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
           className="ShareDialog__picker__form"
           style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
         >
-          <TextField
-            label="Lien de la session"
-            placeholder="Collez le lien d'invitation reçu"
-            value={joinLinkInput}
-            onChange={(value) => {
-              setJoinLinkInput(value);
-              setJoinError(null);
-            }}
-            onKeyDown={(event) => event.key === KEYS.ENTER && handleJoin()}
-          />
-          {joinError && (
-            <div className="ShareDialog__picker__error">{joinError}</div>
-          )}
-          <FilledButton size="large" label="Rejoindre" onClick={handleJoin} />
-
-          <div className="ShareDialog__separator">
-            <span>{t("shareDialog.or")}</span>
-          </div>
-
           <div className="ShareDialog__picker__codeJoinLabel">
-            Tu as un code d'accès ? Choisis la session et saisis le code.
+            Choisis la session et saisis son code d'accès. (Si tu as
+            directement le lien d'invitation, ouvre-le simplement dans ton
+            navigateur pour rejoindre.)
           </div>
           {codeRoomsLoading ? (
             <div className="ActiveSessionsList__loading">

@@ -6,6 +6,41 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.11.0 — 2026-09-27
+
+- Dans "Collaboration en direct", retrait de l'encart "Lien de la
+  session" (coller un lien + "Rejoindre") : il faisait doublon avec le
+  fait d'ouvrir directement le lien reçu dans le navigateur, ce qui
+  rejoint déjà la session automatiquement. On ne peut désormais
+  rejoindre une session depuis cette boîte de dialogue qu'avec le code
+  d'accès ; ouvrir directement l'URL fournie continue de fonctionner
+  comme avant.
+- Le créateur (ou toute personne ayant déjà rejoint) d'une session n'a
+  plus besoin de code d'accès pour y retourner tant qu'elle est encore
+  active : un nouveau bloc "Mes sessions actives", visible dès
+  l'ouverture de la boîte de dialogue "Collaboration en direct" (plus
+  besoin du raccourci caché Maj+9×3), liste ses sessions récentes
+  toujours actives avec un lien direct pour les rejoindre en un clic.
+  Cela s'appuie sur l'historique de sessions déjà enregistré
+  localement par le navigateur (`SessionHistory`) ; ce bloc "Mes
+  sessions actives" a été déplacé hors de la liste cachée
+  (`ActiveSessionsList`, toujours réservée à "Toutes les sessions
+  actives sur le serveur" + Firestore) pour être disponible sans ce
+  raccourci.
+  ⚠️ Corrige au passage le bug remonté : après avoir cliqué "Sortir"
+  puis rouvert la boîte de dialogue, il n'existait auparavant aucun
+  moyen de revenir dans sa propre session encore active sans en
+  connaître le code d'accès.
+- Clarifie la popup de session active ("Live collaboration"), signalée
+  comme confusante : le bouton "Sortir" faisait quitter la
+  collaboration alors que l'utilisateur voulait simplement fermer la
+  popup pour continuer à dessiner, sans moyen évident de faire la
+  différence. Ajout d'un bouton "Fermer (continuer à dessiner)" mis en
+  avant en premier (ferme juste la popup, ne touche pas à la session),
+  et renommage de "Sortir" en "Quitter la session" avec sa description
+  associée juste au-dessus pour lever l'ambiguïté avec "Fermer pour
+  tout le monde".
+
 ## Excalidraw-0.18.0+Custom-1.10.0 — 2026-09-26
 
 - À la création d'une session partagée, en plus du lien on génère
