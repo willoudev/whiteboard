@@ -1413,6 +1413,14 @@ export interface ExcalidrawImperativeAPI {
   ) => UnsubscribeCallback;
   onStateChange: InstanceType<typeof App>["onStateChange"];
   onEvent: InstanceType<typeof App>["onEvent"];
+  /**
+   * Starts text editing at a scene position, same as double-clicking there
+   * would. Reuses an existing (unbound) text element already at that
+   * position instead of creating a new one, so this also serves as the
+   * supported way to programmatically put an already-created text element
+   * into edit mode — call it with that element's own center coordinates.
+   */
+  startTextEditing: InstanceType<typeof App>["startTextEditing"];
 }
 
 export type FrameNameBounds = {

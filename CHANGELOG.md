@@ -6,6 +6,27 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.15.0 — 2026-09-27
+
+- **Les branches du mindmap suivent maintenant un axe horizontal**,
+  alternant strictement à droite et à gauche du sujet central (comme
+  demandé, pour rester lisibles) plutôt que de partir dans toutes les
+  directions ; plusieurs idées du même côté se répartissent
+  verticalement autour de ce même axe, recentrées automatiquement à
+  chaque nouvel ajout du même côté.
+- **On peut écrire une idée dès qu'on clique sur "+"** : le nouveau
+  nœud passe directement en mode édition, texte déjà sélectionné, donc
+  la première frappe remplace tout de suite le texte "Nouvelle idée"
+  au lieu de devoir double-cliquer dessus après coup pour la renommer.
+  - Il n'existe pas de façon publique de déclencher l'édition de texte
+    d'Excalidraw depuis l'app (`appState.editingTextElement` ne fait
+    que changer un champ, rien ne réagit dessus pour afficher le
+    vrai curseur/texte éditable). Ajoute donc une toute petite méthode
+    `startTextEditing` à `ExcalidrawImperativeAPI`
+    (`packages/excalidraw/types.ts` / `App.tsx`) qui expose
+    publiquement une méthode déjà interne à `App`, sans changer son
+    comportement pour qui que ce soit d'autre.
+
 ## Excalidraw-0.18.0+Custom-1.14.2 — 2026-09-27
 
 - **Corrige un plantage critique du mindmap** : insérer un deuxième

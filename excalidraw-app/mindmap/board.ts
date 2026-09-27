@@ -28,6 +28,7 @@ import {
   nodeInset,
   rectCenter,
   asRect,
+  sideForRootChildIndex,
   type Point,
 } from "./layout";
 import { isMindmapData, type MindmapNodeData } from "./types";
@@ -500,12 +501,17 @@ export const buildInitialMindmapElements = (cx: number, cy: number): ExcalidrawE
   });
 
   const branchTexts = ["Idée 1", "Idée 2", "Idée 3"];
+  const branchSides = branchTexts.map((_, i) => sideForRootChildIndex(i));
   branchTexts.forEach((text, index) => {
     const color = BRANCH_COLORS[index % BRANCH_COLORS.length];
+    const side = branchSides[index];
+    const sideIndex = branchSides.slice(0, index).filter((s) => s === side).length;
+    const sideCount = branchSides.filter((s) => s === side).length;
     const { center, angle } = computeChildCenter(
       { center: { x: cx, y: cy }, angle: 0, isRoot: true, depth: 0 },
-      index,
-      branchTexts.length,
+      sideIndex,
+      sideCount,
+      side,
     );
     const branchId = newElementId();
     const branchSize = addNodeWithChildButton(builder, {
@@ -537,15 +543,17 @@ export const buildInitialMindmapElements = (cx: number, cy: number): ExcalidrawE
 
 /** Adds a new child node (+ its own "+" button and the connector back to
  * its parent) and lets `reflowMindmap` settle the rest — z-order, and
- * (if the parent itself is mid-drag) position cascade. */
+ * (if the parent itself is mid-drag) position cascade. Returns the new
+ * node's id alongside the updated elements so the caller can put it
+ * straight into text-editing mode. */
 export const addChildNode = (
   elements: readonly ExcalidrawElement[],
   boardId: string,
   parentId: string,
-): ExcalidrawElement[] => {
+): { elements: ExcalidrawElement[]; newNodeId: string } | null => {
   const parent = findNode(elements, boardId, parentId);
   if (!parent) {
-    return elements as ExcalidrawElement[];
+    return null;
   }
   const parentData = parent.customData;
   const isRoot = parentData.parentId === null;
@@ -558,31 +566,42 @@ export const addChildNode = (
   const color = isRoot ? BRANCH_COLORS[order % BRANCH_COLORS.length] : parentData.color;
 
   const parentCenter = rectCenter(asRect(parent));
-  const newCount = order + 1;
+
+  // Root's children alternate sides (see `sideForRootChildIndex`), so
+  // "this child's siblings" for stacking purposes means only the other
+  // children on the *same side* — every other node has just one set of
+  // siblings (all of the parent's children).
+  const side = isRoot ? sideForRootChildIndex(order) : undefined;
+  const sameSideSiblings = isRoot
+    ? siblings.filter((s, i) => sideForRootChildIndex(i) === side)
+    : siblings;
+  const localIndex = sameSideSiblings.length;
+  const localCount = localIndex + 1;
 
   const { center, angle } = computeChildCenter(
     { center: parentCenter, angle: parentData.angle, isRoot, depth: parentDepth },
-    order,
-    newCount,
+    localIndex,
+    localCount,
+    side,
   );
 
-  // A non-root parent's children are centered as a group around its
-  // branch (see `computeChildCenter`), so adding one more shifts where
-  // *every* existing sibling belongs too — without this, older siblings
-  // keep the offset they got when there were fewer of them and end up
-  // crowded/overlapping instead of evenly spread. (Root's own children
-  // don't need this: their angle only depends on their own fixed index,
-  // never on how many siblings exist.) Left at their raw x/y with stale
-  // `lastX`/`lastY`, so `reflowMindmap` below picks up the delta and
-  // cascades it to each sibling's own descendants, same as a manual drag.
+  // A parent's children of the same angle/side are centered as a group
+  // (see `computeChildCenter`), so adding one more shifts where *every*
+  // existing same-side sibling belongs too — without this, older
+  // siblings keep the offset they got when there were fewer of them and
+  // end up crowded/overlapping instead of evenly spread. Left at their
+  // raw x/y with stale `lastX`/`lastY`, so `reflowMindmap` below picks
+  // up the delta and cascades it to each sibling's own descendants,
+  // same as a manual drag.
   let base: readonly ExcalidrawElement[] = elements;
-  if (!isRoot && siblings.length > 0) {
+  if (sameSideSiblings.length > 0) {
     const rebalanced = new Map<string, ExcalidrawElement>();
-    siblings.forEach((sibling, i) => {
+    sameSideSiblings.forEach((sibling, i) => {
       const { center: sibCenter } = computeChildCenter(
         { center: parentCenter, angle: parentData.angle, isRoot, depth: parentDepth },
         i,
-        newCount,
+        localCount,
+        side,
       );
       const newX = sibCenter.x - sibling.width / 2;
       const newY = sibCenter.y - sibling.height / 2;
@@ -621,7 +640,7 @@ export const addChildNode = (
   });
 
   const withNewChild = [...base, ...builder.build()];
-  return reflowMindmap(withNewChild, boardId);
+  return { elements: reflowMindmap(withNewChild, boardId), newNodeId: childId };
 };
 
 const countDepth = (

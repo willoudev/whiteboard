@@ -7,6 +7,7 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import { addChildNode, reflowMindmap } from "./board";
 import { asRect, rectContains } from "./layout";
+import { startEditingNode } from "./startTextEditing";
 import { isMindmapData } from "./types";
 
 /** Wires mind maps on the canvas up to real interactions:
@@ -50,10 +51,15 @@ export const useMindmapInteractions = (
           if (!rectContains(asRect(el), scenePoint)) {
             continue;
           }
+          const added = addChildNode(elements, data.boardId, data.nodeId);
+          if (!added) {
+            return;
+          }
           excalidrawAPI.updateScene({
-            elements: addChildNode(elements, data.boardId, data.nodeId),
+            elements: added.elements,
             captureUpdate: CaptureUpdateAction.IMMEDIATELY,
           });
+          startEditingNode(excalidrawAPI, added.newNodeId);
           return;
         }
       },

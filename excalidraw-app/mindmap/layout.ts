@@ -59,12 +59,6 @@ export const SIBLING_SPACING = 76;
  * root are inset to its radius so they visually start at its edge. */
 export const ROOT_CIRCLE_SIZE = 190;
 
-/** Multiple children spread out evenly around the circle for the root's
- * own branches — the golden angle keeps them from clustering regardless
- * of how many get added, without needing to know the final count up
- * front (new siblings just take the next slot). */
-export const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-
 export const rectContains = (rect: Rect, point: Point) =>
   point.x >= rect.x &&
   point.x <= rect.x + rect.width &&
@@ -91,28 +85,41 @@ export const rectCenter = (rect: Rect): Point => ({
 export const nodeInset = (size: { width: number; height: number }) =>
   Math.max(10, Math.max(size.width, size.height) / 2 + 6);
 
+export type Side = "left" | "right";
+
+/** Which side of the root a given root-child index belongs to — strictly
+ * alternating (right, left, right, left, …), so the mindmap's main
+ * branches always grow along the same horizontal axis as the topic
+ * itself instead of spreading up/down/diagonally off-screen. */
+export const sideForRootChildIndex = (index: number): Side =>
+  index % 2 === 0 ? "right" : "left";
+
 /** Where a new child of `parent` should be centered, and which angle it
  * (and, later, its own children) should continue growing in.
- * - Root's children get a fresh slot around the full circle each time.
+ * - Root's children always sit due left or due right of it (`side`,
+ *   required when `parent.isRoot`) — a purely horizontal main axis, so
+ *   the branches stay visible/readable instead of fanning out in every
+ *   direction. Multiple children on the *same* side stack vertically,
+ *   same as any other node's siblings.
  * - Any other node's children continue in the *parent's own* angle
  *   (the branch keeps extending outward in one direction), spread apart
- *   perpendicular to that angle so siblings don't overlap. */
+ *   perpendicular to that angle so siblings don't overlap.
+ *
+ * `siblingIndex`/`siblingCount` are scoped to whatever `angle` ends up
+ * being: for the root, that's the count of children on the *same side*
+ * (not all of the root's children); for anyone else, all of the
+ * parent's children (there's only one possible angle for those). */
 export const computeChildCenter = (
   parent: { center: Point; angle: number; isRoot: boolean; depth: number },
   siblingIndex: number,
   siblingCount: number,
+  side?: Side,
 ): { center: Point; angle: number } => {
-  const angle = parent.isRoot
-    ? siblingIndex * GOLDEN_ANGLE
-    : parent.angle;
+  const angle = parent.isRoot ? (side === "left" ? Math.PI : 0) : parent.angle;
   const radius = radiusForDepth(parent.depth + 1);
 
   const baseX = parent.center.x + Math.cos(angle) * radius;
   const baseY = parent.center.y + Math.sin(angle) * radius;
-
-  if (parent.isRoot) {
-    return { center: { x: baseX, y: baseY }, angle };
-  }
 
   const perpAngle = angle + Math.PI / 2;
   const centeredIndex = siblingIndex - (siblingCount - 1) / 2;

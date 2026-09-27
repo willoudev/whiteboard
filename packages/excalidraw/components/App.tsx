@@ -858,6 +858,7 @@ class App extends React.Component<AppProps, AppState> {
       onUserFollow: (cb) => this.onUserFollowEmitter.on(cb),
       onStateChange: this.onStateChange,
       onEvent: this.onEvent,
+      startTextEditing: this.startTextEditing,
     };
     return api;
   }
