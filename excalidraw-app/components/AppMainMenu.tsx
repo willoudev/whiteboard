@@ -9,7 +9,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import { LanguageList } from "../app-language/LanguageList";
 import { APP_VERSION } from "../app_constants";
-import { insertKanbanTemplate, insertMindmapTemplate } from "../data/templates";
+import { insertMindmapTemplate } from "../data/templates";
+import { insertKanbanBoard } from "../kanban/insert";
 
 import { saveDebugState } from "./DebugCanvas";
 
@@ -62,7 +63,7 @@ export const AppMainMenu: React.FC<{
         <>
           <MainMenu.Item
             icon={kanbanIcon}
-            onSelect={() => insertKanbanTemplate(props.excalidrawAPI!)}
+            onSelect={() => insertKanbanBoard(props.excalidrawAPI!)}
           >
             Insérer un kanban
           </MainMenu.Item>

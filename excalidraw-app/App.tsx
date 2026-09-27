@@ -143,6 +143,7 @@ import DebugCanvas, {
   loadSavedDebugState,
 } from "./components/DebugCanvas";
 import { useSimulatedCollaborators } from "./debugCollaborators";
+import { useKanbanBoardInteractions } from "./kanban/useKanbanBoardInteractions";
 import { AIComponents } from "./components/AI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
@@ -473,6 +474,10 @@ const ExcalidrawWrapper = () => {
   // collaborators for exercising avatar/UserList UI without a real
   // collab room
   useSimulatedCollaborators(excalidrawAPI);
+
+  // Wires up the "+"/"×" buttons, drag-between-containers reflow, and
+  // resize cascade for any interactive kanban board(s) on the canvas.
+  useKanbanBoardInteractions(excalidrawAPI);
 
   // ---------------------------------------------------------------------------
   // Hoisted loadImages

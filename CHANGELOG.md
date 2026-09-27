@@ -6,6 +6,50 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.12.0 — 2026-09-27
+
+- Remplace le kanban statique (inséré une fois, puis de simples formes
+  Excalidraw sans comportement particulier) par un vrai tableau
+  interactif (`excalidraw-app/kanban/`) :
+  - **Conteneurs groupés** : les colonnes (rectangle + titre + ses
+    boutons) d'un même tableau partagent un vrai groupe Excalidraw, donc
+    les sélectionner/déplacer/redimensionner agit sur la structure
+    entière d'un coup — pas colonne par colonne.
+  - **Ajouter/supprimer des conteneurs** via un bouton "+ Conteneur" en
+    bout de ligne et un bouton "×" par colonne (avec confirmation,
+    supprime aussi ses tâches) ; les colonnes restantes se recalent
+    automatiquement pour combler le vide.
+  - **Ajouter un post-it** via un bouton "+" au bas de chaque colonne.
+  - **Déplacer un post-it d'un conteneur à l'autre** par un simple
+    cliquer-glisser : les post-its ne font volontairement pas partie du
+    groupe des conteneurs (sinon un seul clic aurait déplacé tout le
+    tableau au lieu d'une seule tâche) ; on détecte la colonne de dépôt
+    au relâchement et on y réintègre la carte.
+  - **Empilement automatique et réordonnancement** : les post-its d'une
+    colonne se réempilent toujours proprement les uns sous les autres,
+    et l'endroit où on lâche une carte parmi ses voisines détermine sa
+    nouvelle position dans la pile.
+  - **Redimensionner la structure agrandit/réduit tout** : le
+    redimensionnement natif du groupe de conteneurs est répercuté sur
+    les post-its (taille et position, dérivées de la largeur réelle de
+    leur conteneur) juste après, pour qu'ils restent visuellement
+    cohérents avec des colonnes agrandies ou réduites.
+  - Trois bugs non triviaux rencontrés et corrigés pendant le
+    développement (documentés dans le code) : (1) déplacer
+    programmatiquement un élément avec `updateScene` ne redéplace pas
+    son texte lié — il faut recalculer sa position via
+    `computeBoundTextPosition` ; (2) supprimer un élément ne supprime
+    pas son texte lié, qui reste affiché tout seul ; (3) un post-it
+    déplacé dans une colonne créée après lui dans l'historique de la
+    scène restait visuellement sous le fond (opaque) de cette colonne,
+    car il gardait son ancien ordre d'empilement graphique (`index`
+    Excalidraw) — corrigé en le ramenant explicitement au-dessus à
+    chaque réorganisation ; (4) `pointerDownState.drag.hasOccurred` ne
+    passe jamais à `true` pendant un redimensionnement (seulement pour
+    un déplacement), donc la détection devait se baser sur
+    `resize.isResizing` en plus, sans quoi le rééquilibrage des post-its
+    après un redimensionnement ne se déclenchait jamais.
+
 ## Excalidraw-0.18.0+Custom-1.11.1 — 2026-09-27
 
 - Corrige "Mes sessions actives" (et les deux autres endroits qui

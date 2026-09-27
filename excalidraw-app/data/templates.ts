@@ -6,69 +6,6 @@ import { pointFrom, type LocalPoint } from "@excalidraw/math";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
-const buildKanbanSkeleton = (
-  cx: number,
-  cy: number,
-): ExcalidrawElementSkeleton[] => {
-  const columns = [
-    { id: "kanban-col-todo", x: cx - 490, title: "À faire", color: "#a5d8ff" },
-    { id: "kanban-col-doing", x: cx - 150, title: "En cours", color: "#ffec99" },
-    { id: "kanban-col-done", x: cx + 190, title: "Terminé", color: "#b2f2bb" },
-  ] as const;
-  const columnY = cy - 260;
-  const columnWidth = 300;
-  const columnHeight = 520;
-
-  const elements: ExcalidrawElementSkeleton[] = [];
-
-  for (const column of columns) {
-    elements.push({
-      type: "rectangle",
-      id: column.id,
-      x: column.x,
-      y: columnY,
-      width: columnWidth,
-      height: columnHeight,
-      backgroundColor: "#f1f3f5",
-      strokeColor: "#adb5bd",
-      roundness: { type: 3 },
-      label: {
-        text: column.title,
-        fontSize: 22,
-        verticalAlign: "top",
-      },
-    });
-  }
-
-  const cardWidth = columnWidth - 40;
-  const cardHeight = 80;
-  const cardGap = 15;
-
-  const cards: { columnIndex: 0 | 1 | 2; text: string }[] = [
-    { columnIndex: 0, text: "Tâche à faire" },
-    { columnIndex: 0, text: "Autre tâche" },
-    { columnIndex: 1, text: "Tâche en cours" },
-    { columnIndex: 2, text: "Tâche terminée" },
-  ];
-  const cardsPerColumn: number[] = [0, 0, 0];
-
-  for (const card of cards) {
-    const column = columns[card.columnIndex];
-    const row = cardsPerColumn[card.columnIndex]++;
-    elements.push({
-      type: "stickynote",
-      x: column.x + 20,
-      y: columnY + 70 + row * (cardHeight + cardGap),
-      width: cardWidth,
-      height: cardHeight,
-      backgroundColor: column.color,
-      label: { text: card.text, fontSize: 18 },
-    });
-  }
-
-  return elements;
-};
-
 /** Rough width estimate (text elements measure their own real size once
  * converted, but the curve control point only needs an approximate
  * center to look right — it doesn't affect the actual binding). */
@@ -348,9 +285,6 @@ const insertSkeleton = (
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 };
-
-export const insertKanbanTemplate = (excalidrawAPI: ExcalidrawImperativeAPI) =>
-  insertSkeleton(excalidrawAPI, buildKanbanSkeleton);
 
 export const insertMindmapTemplate = (
   excalidrawAPI: ExcalidrawImperativeAPI,
