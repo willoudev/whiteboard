@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { fetchActiveRooms, type ActiveRoom } from "../data/activeRooms";
+import {
+  fetchActiveRooms,
+  navigateToRoom,
+  type ActiveRoom,
+} from "../data/activeRooms";
 import { getSessionHistory } from "../data/SessionHistory";
 
 import "./ActiveSessionsList.scss";
@@ -50,9 +54,7 @@ export const MySessionsList = () => {
               <button
                 type="button"
                 className="ActiveSessionsList__item ActiveSessionsList__item--clickable"
-                onClick={() => {
-                  window.location.href = entry.link;
-                }}
+                onClick={() => navigateToRoom(entry.link)}
               >
                 <span className="ActiveSessionsList__item__name">
                   {room?.name ?? `${entry.roomId.slice(0, 8)}…`}

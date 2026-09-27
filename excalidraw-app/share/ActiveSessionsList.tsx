@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 
-import { fetchActiveRooms, type ActiveRoom } from "../data/activeRooms";
+import {
+  fetchActiveRooms,
+  navigateToRoom,
+  type ActiveRoom,
+} from "../data/activeRooms";
 import { listStoredRooms, type StoredRoom } from "../data/firebase";
 import { getSessionHistory } from "../data/SessionHistory";
 
@@ -127,9 +131,7 @@ export const ActiveSessionsList = () => {
                     <button
                       type="button"
                       className="ActiveSessionsList__item ActiveSessionsList__item--clickable"
-                      onClick={() => {
-                        window.location.href = known.link;
-                      }}
+                      onClick={() => navigateToRoom(known.link)}
                     >
                       <span className="ActiveSessionsList__item__name">
                         {room.roomId.slice(0, 8)}…

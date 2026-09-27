@@ -1,5 +1,21 @@
 import { getCollaborationLink } from "./index";
 
+/** Navigates to a room link with a real page reload rather than a plain
+ * `location.href = link` assignment. When the link only differs from the
+ * current URL by its hash (the common case here — same origin, same
+ * path, just a different #room=...), assigning `.href` alone does NOT
+ * trigger any network request: the browser treats it as a same-document
+ * hash change, so it can't pick up a JS/service-worker update that
+ * shipped after this tab was opened, and joining then depends entirely
+ * on the app's own hashchange handler doing the right thing. A forced
+ * reload sidesteps all of that by going through the same well-tested
+ * "fresh load with a room link in the URL" path a freshly opened invite
+ * link already takes. */
+export const navigateToRoom = (link: string) => {
+  window.location.href = link;
+  window.location.reload();
+};
+
 export type ActiveRoom = {
   roomId: string;
   count: number;

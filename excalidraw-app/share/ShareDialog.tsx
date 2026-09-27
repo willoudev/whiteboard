@@ -19,7 +19,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { atom, useAtom, useAtomValue } from "../app-jotai";
 import { activeRoomInfoAtom, activeRoomLinkAtom } from "../collab/Collab";
-import { fetchActiveRooms, verifyAccessCode } from "../data/activeRooms";
+import {
+  fetchActiveRooms,
+  navigateToRoom,
+  verifyAccessCode,
+} from "../data/activeRooms";
 
 import { ActiveSessionsList } from "./ActiveSessionsList";
 import { MySessionsList } from "./MySessionsList";
@@ -342,7 +346,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
     const result = await verifyAccessCode(codeRoomId, code);
     setCodeVerifying(false);
     if (result.success) {
-      window.location.href = result.link;
+      navigateToRoom(result.link);
     } else {
       setWrongAccessCode(true);
     }

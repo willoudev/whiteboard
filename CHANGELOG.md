@@ -6,6 +6,22 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.11.1 — 2026-09-27
+
+- Corrige "Mes sessions actives" (et les deux autres endroits qui
+  rejoignent une session déjà connue : "Se connecter avec le code" et
+  la liste Firestore cachée) : cliquer pour rejoindre appelait
+  `window.location.href = lien`, qui ne déclenche **aucune** navigation
+  quand le lien ne diffère de l'URL actuelle que par le hash — ce qui
+  est le cas le plus courant, y compris juste après avoir quitté une
+  session (le hash `#room=...` reste dans l'URL après "Quitter la
+  session", donc cliquer pour retourner dans **cette même** session ne
+  faisait alors littéralement rien, puisqu'affecter `location.href` à
+  sa propre valeur ne déclenche même pas l'événement `hashchange` dont
+  l'app dépendait). Rejoindre déclenche maintenant un vrai rechargement
+  de page à chaque fois, qui repasse par le chemin standard et
+  bien testé d'un lien d'invitation ouvert directement.
+
 ## Excalidraw-0.18.0+Custom-1.11.0 — 2026-09-27
 
 - Dans "Collaboration en direct", retrait de l'encart "Lien de la
