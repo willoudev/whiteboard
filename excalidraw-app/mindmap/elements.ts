@@ -4,7 +4,7 @@ import { randomId } from "@excalidraw/common";
 import type { ExcalidrawElementSkeleton } from "@excalidraw/element";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
-import { connectorGeometry, type Point } from "./layout";
+import { ROOT_CIRCLE_SIZE, connectorGeometry, type Point } from "./layout";
 import type { MindmapElementData } from "./types";
 
 export const ADD_CHILD_BUTTON_SIZE = 26;
@@ -13,7 +13,7 @@ export const ADD_CHILD_BUTTON_SIZE = 26;
  * just past its right edge, vertically centered. Shared by both the
  * builder (initial placement) and reflow (keeping it glued on move). */
 export const addChildButtonOffset = (nodeWidth: number, nodeHeight: number) => ({
-  dx: nodeWidth + 6,
+  dx: nodeWidth + 14,
   dy: nodeHeight / 2 - ADD_CHILD_BUTTON_SIZE / 2,
 });
 
@@ -81,8 +81,10 @@ export class MindmapElementsBuilder {
     from: Point;
     to: Point;
     color: string;
+    fromInset?: number;
+    toInset?: number;
   }) {
-    const geo = connectorGeometry(opts.from, opts.to);
+    const geo = connectorGeometry(opts.from, opts.to, opts.fromInset ?? 10, opts.toInset ?? 10);
     this.skeleton.push({
       type: "arrow",
       id: opts.id,
@@ -91,7 +93,7 @@ export class MindmapElementsBuilder {
       points: geo.points,
       roundness: { type: 2 },
       strokeColor: opts.color,
-      strokeWidth: 2,
+      strokeWidth: 3,
       startArrowhead: null,
       endArrowhead: null,
     });
@@ -131,6 +133,36 @@ export class MindmapElementsBuilder {
         mindmap: true,
         boardId: opts.boardId,
         role: "addChildButton",
+        nodeId: opts.nodeId,
+      },
+      locked: true,
+    });
+    return opts.id;
+  }
+
+  /** Decorative filled circle behind the root topic — matches the
+   * reference image's central node. Pushed to the skeleton *before* the
+   * root's own text (see `buildInitialMindmapElements`), so once both
+   * get moved to the front of the paint order together (see
+   * `bringToFront` in board.ts) the circle still stays behind its text,
+   * since that reorder preserves relative order within the group. */
+  addRootBackground(opts: { id: string; boardId: string; nodeId: string; x: number; y: number }) {
+    this.skeleton.push({
+      type: "ellipse",
+      id: opts.id,
+      x: opts.x,
+      y: opts.y,
+      width: ROOT_CIRCLE_SIZE,
+      height: ROOT_CIRCLE_SIZE,
+      backgroundColor: "#f1f3f5",
+      strokeColor: "#adb5bd",
+      strokeWidth: 2,
+    });
+    this.tags.set(opts.id, {
+      customData: {
+        mindmap: true,
+        boardId: opts.boardId,
+        role: "rootBackground",
         nodeId: opts.nodeId,
       },
       locked: true,

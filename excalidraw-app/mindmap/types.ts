@@ -40,10 +40,20 @@ export type MindmapAddChildButtonData = {
   nodeId: string;
 };
 
+/** Decorative circle drawn behind the root topic — see
+ * `MindmapElementsBuilder.addRootBackground`. */
+export type MindmapRootBackgroundData = {
+  mindmap: true;
+  boardId: string;
+  role: "rootBackground";
+  nodeId: string;
+};
+
 export type MindmapElementData =
   | MindmapNodeData
   | MindmapConnectorData
-  | MindmapAddChildButtonData;
+  | MindmapAddChildButtonData
+  | MindmapRootBackgroundData;
 
 export const isMindmapData = (data: unknown): data is MindmapElementData =>
   !!data && typeof data === "object" && (data as any).mindmap === true;

@@ -49,8 +49,15 @@ export const radiusForDepth = (childDepth: number) =>
   childDepth <= 1 ? 260 : 190;
 
 /** Perpendicular spacing between siblings sharing the same parent (and
- * therefore the same outward angle). */
-export const SIBLING_SPACING = 64;
+ * therefore the same outward angle). Generous enough that two default
+ * (single-line) labels never touch. */
+export const SIBLING_SPACING = 76;
+
+/** Fixed-size filled circle drawn behind the root topic, matching the
+ * reference image's central node. Deliberately not grown to fit long
+ * root text (keeps the layout simple/predictable) — connectors from the
+ * root are inset to its radius so they visually start at its edge. */
+export const ROOT_CIRCLE_SIZE = 190;
 
 /** Multiple children spread out evenly around the circle for the root's
  * own branches — the golden angle keeps them from clustering regardless
@@ -75,6 +82,14 @@ export const rectCenter = (rect: Rect): Point => ({
   x: rect.x + rect.width / 2,
   y: rect.y + rect.height / 2,
 });
+
+/** How far a connector should stay clear of an ordinary (non-root) node's
+ * own center, regardless of which direction it approaches from — a flat
+ * few-pixel inset is nowhere near enough once the node's label has any
+ * real width, and the curve ends up cutting straight through the text
+ * instead of stopping at its edge. */
+export const nodeInset = (size: { width: number; height: number }) =>
+  Math.max(10, Math.max(size.width, size.height) / 2 + 6);
 
 /** Where a new child of `parent` should be centered, and which angle it
  * (and, later, its own children) should continue growing in.
@@ -116,11 +131,17 @@ export const computeChildCenter = (
  * between two node centers — the same "branch" look as the old static
  * template, just recomputed live from two arbitrary points instead of
  * being baked in once. Bulge scales with distance (capped) so short hops
- * still read as curved without long ones looking exaggerated. */
+ * still read as curved without long ones looking exaggerated.
+ *
+ * `fromInset`/`toInset` pull each endpoint back from the raw center —
+ * a small fixed gap for an ordinary text node, or the root circle's
+ * radius when the connector starts at the root, so the curve begins at
+ * the circle's edge instead of poking through it. */
 export const connectorGeometry = (
   from: Point,
   to: Point,
-  inset = 10,
+  fromInset = 10,
+  toInset = 10,
 ): { x: number; y: number; points: LocalPoint[] } => {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -129,10 +150,10 @@ export const connectorGeometry = (
   const uy = dy / len;
   const bulge = Math.min(36, len * 0.16);
 
-  const startX = from.x + ux * inset;
-  const startY = from.y + uy * inset;
-  const segDx = dx - ux * inset * 2;
-  const segDy = dy - uy * inset * 2;
+  const startX = from.x + ux * fromInset;
+  const startY = from.y + uy * fromInset;
+  const segDx = dx - ux * (fromInset + toInset);
+  const segDy = dy - uy * (fromInset + toInset);
 
   const px = (-segDy / len) * bulge;
   const py = (segDx / len) * bulge;

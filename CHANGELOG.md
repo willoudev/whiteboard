@@ -6,6 +6,30 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.14.1 — 2026-09-27
+
+- Corrige la lisibilité du mindmap (retour : "on n'arrive pas à lire").
+  - **Bug de fond trouvé et corrigé** : quand une idée avait déjà des
+    sous-idées et qu'on en ajoutait une nouvelle, les sous-idées
+    existantes gardaient leur ancienne position (calculée pour un
+    nombre de sœurs plus petit) au lieu d'être réparties à nouveau —
+    elles finissaient entassées de façon asymétrique au lieu d'être
+    régulièrement espacées. Ajouter une idée recalcule maintenant la
+    position de toutes ses sœurs (et leur propre descendance suit via
+    le même mécanisme que le glisser-déposer).
+  - Le sujet central est maintenant entouré d'un cercle plein (comme
+    sur l'image de référence) plutôt qu'un texte nu.
+  - Les courbes de connexion sont plus épaisses et s'arrêtent proprement
+    au bord de chaque idée (cercle du sujet central, ou bord du texte
+    pour les autres) au lieu de le traverser.
+  - Le bouton "+" d'une idée suit maintenant sa taille réelle même
+    quand seul son texte change (sans que l'idée elle-même se déplace),
+    pour ne jamais chevaucher un texte qui s'allonge — et sa légende
+    "+" ne se détache plus de son cadre au repositionnement (même bug
+    que celui déjà corrigé sur les conteneurs du kanban : un
+    déplacement programmatique ne fait pas suivre le texte lié tout
+    seul).
+
 ## Excalidraw-0.18.0+Custom-1.14.0 — 2026-09-27
 
 - Remplace le mindmap statique (un modèle figé inséré une fois) par une
