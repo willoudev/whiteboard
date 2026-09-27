@@ -121,31 +121,82 @@ const applyUpdates = (
   ...additions,
 ];
 
-/** Moves the given elements to the end of the array (highest paint
- * order) — nodes (and their "+" buttons) should always paint above the
- * curved connectors, matching the reference image where a branch's
- * curve visually terminates at its label rather than crossing over it. */
-const bringToFront = (
+/** Reorders one board's own elements so its nodes/buttons/root-circle
+ * (`frontIds`) paint above its own connectors — matching the reference
+ * image where a branch's curve visually terminates at its label rather
+ * than crossing over it. Deliberately scoped to *this board's own*
+ * elements only (`scopeIds`, identified purely by their current array
+ * positions): reordering only within those slots, leaving every element
+ * of any other board (or anything else on the canvas) exactly where it
+ * was.
+ *
+ * An earlier version moved `frontIds` to the very end of the *whole*
+ * scene array instead. With a single board that's indistinguishable
+ * from this, but with two or more mindmaps on the same canvas it
+ * oscillates forever: each board's reflow bumps its own elements to the
+ * global end, which knocks every other board's elements off the end,
+ * making *their* next reflow think it needs reordering too — an
+ * unbounded ping-pong between boards that never returns the same
+ * `elements` reference twice, so `onChange` → `updateScene` → `onChange`
+ * never converges and React eventually crashes ("Maximum update depth
+ * exceeded"). Reordering only within this board's own slots can't
+ * perturb another board's array positions, so that feedback loop can't
+ * happen. */
+/** Cheap check for whether `reorderWithinBoard` would actually change
+ * anything, without allocating — lets the caller skip both it *and*
+ * `applyUpdates` (which always allocates a new array) when nothing
+ * needs to change at all, preserving the "same reference in, same
+ * reference out" no-op guarantee `reflowMindmap` depends on to avoid
+ * looping via `onChange` for no reason. */
+const isAlreadyOrderedWithinBoard = (
   elements: readonly ExcalidrawElement[],
-  ids: ReadonlySet<string>,
-): ExcalidrawElement[] => {
-  const front: ExcalidrawElement[] = [];
-  const rest: ExcalidrawElement[] = [];
+  scopeIds: ReadonlySet<string>,
+  frontIds: ReadonlySet<string>,
+): boolean => {
+  let seenFront = false;
   for (const el of elements) {
-    (ids.has(el.id) ? front : rest).push(el);
+    if (!scopeIds.has(el.id)) {
+      continue;
+    }
+    if (frontIds.has(el.id)) {
+      seenFront = true;
+    } else if (seenFront) {
+      return false;
+    }
   }
-  return [...rest, ...front];
+  return true;
 };
 
-const isAlreadyAtFront = (
+const reorderWithinBoard = (
   elements: readonly ExcalidrawElement[],
-  ids: ReadonlySet<string>,
-): boolean => {
-  if (ids.size === 0) {
-    return true;
+  scopeIds: ReadonlySet<string>,
+  frontIds: ReadonlySet<string>,
+): ExcalidrawElement[] => {
+  const indices: number[] = [];
+  const scoped: ExcalidrawElement[] = [];
+  elements.forEach((el, i) => {
+    if (scopeIds.has(el.id)) {
+      indices.push(i);
+      scoped.push(el);
+    }
+  });
+
+  const front: ExcalidrawElement[] = [];
+  const rest: ExcalidrawElement[] = [];
+  for (const el of scoped) {
+    (frontIds.has(el.id) ? front : rest).push(el);
   }
-  const tail = elements.slice(elements.length - ids.size);
-  return tail.length === ids.size && tail.every((el) => ids.has(el.id));
+  const reordered = [...rest, ...front];
+
+  if (reordered.every((el, i) => el.id === scoped[i].id)) {
+    return elements as ExcalidrawElement[];
+  }
+
+  const next = elements.slice();
+  indices.forEach((idx, i) => {
+    next[idx] = reordered[i];
+  });
+  return next;
 };
 
 /** Recomputes connector curves and cascades node drags down their
@@ -339,7 +390,11 @@ export const reflowMindmap = (
     }
   }
 
-  // Nodes (+ their buttons) should always paint above connectors.
+  // Nodes (+ their buttons/root-circle) should always paint above this
+  // board's own connectors — scoped to just this board's elements (see
+  // `reorderWithinBoard`'s doc comment for why a global reorder isn't
+  // safe once more than one board is on the canvas).
+  const scopeIds = new Set<string>();
   const frontIds = new Set<string>();
   for (const el of elements) {
     if (!isMindmapData(el.customData) || el.customData.boardId !== boardId) {
@@ -349,6 +404,7 @@ export const reflowMindmap = (
     if (willBeDeleted) {
       continue;
     }
+    scopeIds.add(el.id);
     if (
       el.customData.role === "node" ||
       el.customData.role === "addChildButton" ||
@@ -357,14 +413,14 @@ export const reflowMindmap = (
       frontIds.add(el.id);
     }
   }
-  const needsReorder = !isAlreadyAtFront(elements, frontIds);
 
+  const needsReorder = !isAlreadyOrderedWithinBoard(elements, scopeIds, frontIds);
   if (updates.size === 0 && !needsReorder) {
     return elements as ExcalidrawElement[];
   }
 
   const next = applyUpdates(elements, updates, []);
-  return needsReorder ? bringToFront(next, frontIds) : next;
+  return needsReorder ? reorderWithinBoard(next, scopeIds, frontIds) : next;
 };
 
 const addNodeWithChildButton = (

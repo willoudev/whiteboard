@@ -6,6 +6,26 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.14.2 — 2026-09-27
+
+- **Corrige un plantage critique du mindmap** : insérer un deuxième
+  mindmap sur le même canevas (ex. cliquer "Insérer un mindmap" deux
+  fois) faisait planter toute l'application (écran blanc, plus aucune
+  interaction possible).
+  - Cause : le code qui fait passer les idées/boutons d'un mindmap
+    au-dessus de ses propres courbes de connexion les déplaçait tout au
+    bout du tableau de TOUTE la scène. Avec un seul mindmap ça ne se
+    voyait pas, mais avec deux, chacun repoussait l'autre hors de cette
+    position à chaque frappe de synchronisation — une bascule sans fin
+    entre les deux qui ne convergeait jamais, jusqu'à ce que React
+    abandonne ("Maximum update depth exceeded") et démonte
+    l'application.
+  - Le réordonnancement se limite maintenant aux éléments du mindmap
+    concerné, sans toucher à la position des autres éléments de la
+    scène (y compris ceux d'un autre mindmap) — testé avec deux
+    mindmaps sur le même canevas, ajout d'idées et déplacement sur
+    chacun, sans erreur ni ralentissement.
+
 ## Excalidraw-0.18.0+Custom-1.14.1 — 2026-09-27
 
 - Corrige la lisibilité du mindmap (retour : "on n'arrive pas à lire").
