@@ -6,6 +6,32 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.19.0 — 2026-09-28
+
+- **Déplacer le mindmap via le rond central ne dessine plus, en même
+  temps, un rectangle de sélection non voulu.** Le clic sur le rond
+  démarrait bien le déplacement, mais Excalidraw avait déjà commencé sa
+  propre sélection au clavier-souris pour ce même clic (le rond est un
+  élément verrouillé, donc invisible à sa sélection normale) ; les deux
+  se déclenchaient en même temps.
+- **Laisser le texte par défaut d'une idée/sous-idée inchangé la
+  supprime maintenant quelle que soit la façon de quitter l'édition** —
+  Échap, cliquer ailleurs, cliquer sur le "+" d'une autre idée — pas
+  seulement Entrée comme avant. Couvre le cas où on appuie sur Entrée
+  pour valider une idée sans vouloir enchaîner sur une deuxième.
+- **On peut de nouveau supprimer un mindmap entier ou une idée en
+  particulier.** Cliquer directement sur le texte du sujet central (et
+  non sur le rond qui l'entoure) le sélectionne normalement ; le
+  supprimer (Suppr/Retour arrière) entraîne tout le mindmap avec lui.
+  Corrige aussi deux bugs qui gênaient la suppression : cliquer sur une
+  idée qu'on venait de valider rouvrait son édition au lieu de la
+  sélectionner (comportement standard d'Excalidraw pour un texte déjà
+  sélectionné, désormais évité en désélectionnant une idée dès qu'on a
+  fini de l'éditer) ; et supprimer le tout dernier nœud d'un mindmap
+  (par exemple un sujet central sans aucune idée) laissait son rond de
+  fond et son bouton "+" affichés à l'écran alors que tout le reste
+  avait bien disparu.
+
 ## Excalidraw-0.18.0+Custom-1.18.0 — 2026-09-28
 
 - **Un nouveau mindmap démarre vide : seulement son sujet central**,

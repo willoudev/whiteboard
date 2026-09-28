@@ -1,7 +1,7 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import { newElementWith } from "@excalidraw/element";
+import { isTextElement, newElementWith } from "@excalidraw/element";
 import { viewportCoordsToSceneCoords } from "@excalidraw/common";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
@@ -93,6 +93,42 @@ const startBoardDrag = (
   window.addEventListener("pointerup", handleUp);
 };
 
+/** Deletes `element` if it's still showing its own untouched default
+ * placeholder — shared by every way a node's editing session can end
+ * without the user actually writing anything (see the two call sites
+ * below): Enter (handled inline, before Excalidraw ever sees the key),
+ * and Escape/clicking away (handled generically — see the
+ * `onStateChange("editingTextElement", …)` subscription). Doesn't
+ * apply to the root, whose own default text stands in as a real (if
+ * generic) topic and is never auto-deleted. */
+const deleteIfStillDefault = (
+  excalidrawAPI: ExcalidrawImperativeAPI,
+  element: ExcalidrawElement,
+) => {
+  if (
+    !isMindmapData(element.customData) ||
+    element.customData.role !== "node" ||
+    element.customData.parentId === null
+  ) {
+    return;
+  }
+  const { boardId } = element.customData;
+  const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+  const committed = elements.find((el) => el.id === element.id);
+  if (
+    !committed ||
+    committed.isDeleted ||
+    !isTextElement(committed) ||
+    committed.text !== DEFAULT_NODE_TEXT
+  ) {
+    return;
+  }
+  excalidrawAPI.updateScene({
+    elements: deleteNode(elements, boardId, element.id),
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+  });
+};
+
 /** Wires mind maps on the canvas up to real interactions:
  * - each node's "+" button is a real (locked) scene element, hit-tested
  *   ourselves from the raw pointer position on pointerdown (same trick
@@ -105,13 +141,21 @@ const startBoardDrag = (
  *   the root (which has no siblings) it adds the first *child* instead
  *   — the natural "confirm the topic, start the first idea" flow for a
  *   freshly-inserted mind map. Pressing Enter on a node that's still
- *   showing its own untouched default placeholder deletes it instead
- *   of chaining yet another empty stub — covers both "Enter twice in a
- *   row without typing" and "clicked + and immediately pressed Enter".
+ *   showing its own untouched default placeholder just commits (via
+ *   `deleteIfStillDefault`, triggered by the blur below) instead of
+ *   chaining yet another empty stub — covers both "Enter twice in a row
+ *   without typing" and "clicked + and immediately pressed Enter".
  *   Intercepted on the DOM `keydown` itself (capture phase, so it runs
  *   before Excalidraw's own handler turns Enter into a newline) rather
  *   than through any public API — there isn't one for "the user is
  *   editing text right now" at this granularity.
+ * - leaving a node's text untouched at its own default placeholder —
+ *   by any means, not just Enter (Escape, clicking elsewhere, clicking
+ *   a different node's own "+" button, …) — deletes that node once
+ *   editing stops, via `deleteIfStillDefault`. Driven by
+ *   `onStateChange("editingTextElement", …)`, which fires once editing
+ *   has actually ended (gone back to `null`) rather than by any one
+ *   specific key or event, so every exit path is covered uniformly.
  * - the root's decorative background circle is a bigger, easier handle
  *   for moving the *whole* mind map than the topic's own text — a
  *   pointerdown there starts a manual drag (raw `pointermove`/
@@ -120,7 +164,38 @@ const startBoardDrag = (
  *   itself; `reflowMindmap`'s existing single-node-drag cascade (the
  *   same one a direct drag of any node already triggers) takes care of
  *   carrying every descendant, connector, button and the circle itself
- *   along with it.
+ *   along with it. Intercepted on a capture-phase DOM `pointerdown`
+ *   (rather than through `onPointerDown`, like the buttons above) and
+ *   stopped from propagating any further: by the time `onPointerDown`
+ *   fires, Excalidraw has *already* started its own rubber-band
+ *   selection rectangle for the click (the circle is locked, so it
+ *   doesn't hit anything selectable), which would otherwise be dragged
+ *   out at the same time as the board itself. A click that lands on
+ *   the root's own *text*, though — small, centered on top of the
+ *   circle — is deliberately left alone here so it still reaches
+ *   Excalidraw's normal selection: that's what makes the root (and so
+ *   the whole board, via the delete-cascade below) selectable and
+ *   deletable at all.
+ * - deleting a node — the root included — the normal Excalidraw way
+ *   (select it, press Delete/Backspace, or use its context menu) takes
+ *   its whole subtree down with it: connectors, "+" buttons, and, for
+ *   the root, the background circle too. This isn't code of ours; it's
+ *   `reflowMindmap`'s existing cascade-delete (see its doc comment in
+ *   board.ts), which already runs continuously via the `onChange`
+ *   subscription below and reacts to *any* deleted mindmap node,
+ *   however it got deleted. Deleting the root this way is how the
+ *   whole mind map gets removed in one action. For this to work, the
+ *   node has to actually be *selectable* right after you finish typing
+ *   it — see the next point.
+ * - once a node's editing session ends (same `onStateChange` as above),
+ *   its selection is cleared. Left alone, the node stays selected the
+ *   way Excalidraw always leaves a just-committed text element — and
+ *   Excalidraw treats a click on an *already-selected* text element as
+ *   "start editing it", not "select it". Without this, the very next
+ *   click on an idea you'd just finished typing (the natural "actually,
+ *   never mind, delete this" moment) would silently reopen editing
+ *   instead of selecting it, and Delete/Backspace would edit its text
+ *   rather than remove the node.
  * - everything else — a node being dragged (and its whole subtree +
  *   connectors needing to follow live), a node's text growing as it's
  *   edited (shifting its own "+" button and connector endpoints), or a
@@ -132,6 +207,8 @@ const startBoardDrag = (
 export const useMindmapInteractions = (
   excalidrawAPI: ExcalidrawImperativeAPI | null,
 ) => {
+  const previousEditingElement = useRef<ExcalidrawElement | null>(null);
+
   useEffect(() => {
     if (!excalidrawAPI) {
       return;
@@ -160,22 +237,54 @@ export const useMindmapInteractions = (
           insertChildAndEdit(excalidrawAPI, data.boardId, data.nodeId);
           return;
         }
+      },
+    );
 
-        for (const el of elements) {
-          if (el.isDeleted || !isMindmapData(el.customData)) {
-            continue;
-          }
-          const data = el.customData;
-          if (data.role !== "rootBackground") {
-            continue;
-          }
-          if (!rectContains(asRect(el), scenePoint)) {
-            continue;
-          }
-          startBoardDrag(excalidrawAPI, data.nodeId, scenePoint);
+    // Capture phase, and ahead of Excalidraw's own pointerdown handling
+    // entirely (see the doc comment above) — a plain `onPointerDown`
+    // subscription runs too late to stop the rubber-band selection
+    // rectangle Excalidraw already started for the same click.
+    const handleRootBackgroundPointerDown = (event: PointerEvent) => {
+      const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const appState = excalidrawAPI.getAppState();
+      const scenePoint = viewportCoordsToSceneCoords(
+        { clientX: event.clientX, clientY: event.clientY },
+        appState,
+      );
+
+      for (const el of elements) {
+        if (el.isDeleted || !isMindmapData(el.customData)) {
+          continue;
+        }
+        const data = el.customData;
+        if (data.role !== "rootBackground") {
+          continue;
+        }
+        if (!rectContains(asRect(el), scenePoint)) {
+          continue;
+        }
+        const rootNode = elements.find(
+          (n) =>
+            !n.isDeleted &&
+            isMindmapData(n.customData) &&
+            n.customData.role === "node" &&
+            n.id === data.nodeId,
+        );
+        if (rootNode && rectContains(asRect(rootNode), scenePoint)) {
+          // Land on the topic's own text: leave it to Excalidraw's
+          // normal selection instead of starting a board drag.
           return;
         }
-      },
+        event.preventDefault();
+        event.stopPropagation();
+        startBoardDrag(excalidrawAPI, data.nodeId, scenePoint);
+        return;
+      }
+    };
+    document.addEventListener(
+      "pointerdown",
+      handleRootBackgroundPointerDown,
+      true,
     );
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -203,29 +312,52 @@ export const useMindmapInteractions = (
       event.preventDefault();
       event.stopPropagation();
 
-      // A node still showing its own untouched placeholder gets removed
-      // instead of chaining another one — doesn't apply to the root,
-      // whose own default text stands in as a real (if generic) topic.
-      if (!isRoot && target.value === DEFAULT_NODE_TEXT) {
-        target.blur();
-        const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
-        excalidrawAPI.updateScene({
-          elements: deleteNode(elements, boardId, editingElement.id),
-          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-        });
-        return;
-      }
-
       // Commits the in-progress text (same as clicking away) before we
       // read the scene to add the next node, so its size/position
-      // account for whatever was just typed.
+      // account for whatever was just typed. If nothing was actually
+      // typed, this same blur is what the `onStateChange` subscription
+      // below reacts to — deleting the node instead of leaving it
+      // stubbed out — so there's nothing further to do here for that
+      // case.
       target.blur();
+      if (!isRoot && target.value === DEFAULT_NODE_TEXT) {
+        return;
+      }
       // On the root, Enter adds its first child (an idea); anywhere
       // else it adds a sibling (another child of the *current* node's
       // own parent).
       insertChildAndEdit(excalidrawAPI, boardId, isRoot ? editingElement.id : parentId);
     };
     document.addEventListener("keydown", handleKeyDown, true);
+
+    const unsubscribeEditingChange = excalidrawAPI.onStateChange(
+      "editingTextElement",
+      (editingTextElement) => {
+        const wasEditing = previousEditingElement.current;
+        previousEditingElement.current = editingTextElement ?? null;
+        // Only cares about editing having *stopped* (gone back to
+        // null) — a transition straight from one node to another (e.g.
+        // Enter chaining to a new sibling) is left alone.
+        if (editingTextElement || !wasEditing || !isMindmapData(wasEditing.customData)) {
+          return;
+        }
+        // Excalidraw's own click-to-edit shortcut re-enters edit mode
+        // when a text element is clicked *while already selected* —
+        // exactly what committing a node's text normally leaves it as,
+        // which meant the very next click on a node you'd just finished
+        // typing (the natural "actually, delete this" moment) reopened
+        // editing instead of selecting it for Delete/Backspace to work
+        // on. Clearing the selection here (a plain `updateScene`, not
+        // `clearSelectionSync` — this callback runs from inside
+        // `componentDidUpdate`, where `flushSync` isn't allowed) means
+        // that click lands as a normal select instead.
+        excalidrawAPI.updateScene({
+          appState: { selectedElementIds: {} },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        deleteIfStillDefault(excalidrawAPI, wasEditing);
+      },
+    );
 
     const unsubscribeChange = excalidrawAPI.onChange((elements) => {
       const boardIds = new Set<string>();
@@ -252,7 +384,13 @@ export const useMindmapInteractions = (
 
     return () => {
       unsubscribeDown();
+      document.removeEventListener(
+        "pointerdown",
+        handleRootBackgroundPointerDown,
+        true,
+      );
       document.removeEventListener("keydown", handleKeyDown, true);
+      unsubscribeEditingChange();
       unsubscribeChange();
     };
   }, [excalidrawAPI]);

@@ -337,10 +337,15 @@ export const reflowMindmap = (
   elements: readonly ExcalidrawElement[],
   boardId: string,
 ): ExcalidrawElement[] => {
+  // No early return for zero *live* nodes: deleting a board's very last
+  // remaining node (e.g. an empty root with no ideas yet) leaves
+  // `getBoardNodes` empty on the very call that needs to cascade that
+  // deletion to the node's own button/background/connectors below — an
+  // early return here would skip that cascade and strand them, still
+  // visible, forever. The per-node loops beneath naturally no-op on an
+  // empty `nodes`; only the cascade-delete section (which reads
+  // `elements` directly, not `nodes`) needs to still run.
   const nodes = getBoardNodes(elements, boardId);
-  if (nodes.length === 0) {
-    return elements as ExcalidrawElement[];
-  }
 
   const updates = new Map<string, ExcalidrawElement>();
   const elementsMap: ElementsMap = new Map(elements.map((el) => [el.id, el]));
@@ -499,6 +504,20 @@ export const reflowMindmap = (
           deletedIds.has(data.nodeId));
       if (shouldDelete) {
         updates.set(el.id, newElementWith(updates.get(el.id) ?? el, { isDeleted: true }));
+        // A button's own "+" label is a *bound* text element auto-created
+        // by convertToExcalidrawElements — it never got one of our own
+        // customData tags, so it's invisible to every check above and
+        // would otherwise be left behind, still visible, once its
+        // container (the button) is gone.
+        const boundText = getBoundTextElement(el, elementsMap);
+        if (boundText) {
+          updates.set(
+            boundText.id,
+            newElementWith(updates.get(boundText.id) ?? boundText, {
+              isDeleted: true,
+            }),
+          );
+        }
       }
     }
   }
