@@ -6,6 +6,14 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.19.1 — 2026-09-28
+
+- **Le bouton "+" d'une idée du côté gauche est maintenant à sa gauche**
+  (et non plus à sa droite, vers le sujet central) — il continue la
+  branche vers l'extérieur au lieu de pointer vers l'intérieur, comme
+  c'était déjà le cas côté droit. S'applique aussi aux sous-idées :
+  toute la branche garde le même sens une fois partie à gauche.
+
 ## Excalidraw-0.18.0+Custom-1.19.0 — 2026-09-28
 
 - **Déplacer le mindmap via le rond central ne dessine plus, en même

@@ -411,7 +411,7 @@ export const reflowMindmap = (
             dx: node.width / 2 + ROOT_CIRCLE_SIZE / 2 + 14,
             dy: node.height / 2 - ADD_CHILD_BUTTON_SIZE / 2,
           }
-        : addChildButtonOffset(node.width, node.height);
+        : addChildButtonOffset(node.width, node.height, data.angle);
       const bx = pos.x + dx;
       const by = pos.y + dy;
       if (!numEquals(bx, btn.x) || !numEquals(by, btn.y)) {
@@ -593,7 +593,7 @@ const addNodeWithChildButton = (
         dx: estWidth / 2 + ROOT_CIRCLE_SIZE / 2 + 14,
         dy: fontSize / 2 - ADD_CHILD_BUTTON_SIZE / 2,
       }
-    : addChildButtonOffset(estWidth, fontSize);
+    : addChildButtonOffset(estWidth, fontSize, opts.angle);
   builder.addChildButton({
     id: newElementId(),
     boardId: opts.boardId,

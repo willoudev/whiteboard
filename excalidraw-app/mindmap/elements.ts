@@ -10,10 +10,18 @@ import type { MindmapElementData } from "./types";
 export const ADD_CHILD_BUTTON_SIZE = 26;
 
 /** Where a node's "+" button sits relative to its own top-left/size —
- * just past its right edge, vertically centered. Shared by both the
- * builder (initial placement) and reflow (keeping it glued on move). */
-export const addChildButtonOffset = (nodeWidth: number, nodeHeight: number) => ({
-  dx: nodeWidth + 14,
+ * just past its outward edge (the direction its own branch grows in),
+ * vertically centered: past the *right* edge for a node whose branch
+ * grows rightward, past the *left* edge for one growing leftward — so
+ * the button always continues the branch outward instead of pointing
+ * back in toward the root. Shared by both the builder (initial
+ * placement) and reflow (keeping it glued on move). */
+export const addChildButtonOffset = (
+  nodeWidth: number,
+  nodeHeight: number,
+  angle: number,
+) => ({
+  dx: Math.cos(angle) < 0 ? -(ADD_CHILD_BUTTON_SIZE + 14) : nodeWidth + 14,
   dy: nodeHeight / 2 - ADD_CHILD_BUTTON_SIZE / 2,
 });
 
