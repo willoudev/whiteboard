@@ -6,6 +6,17 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.15.2 — 2026-09-28
+
+- Le texte "Nouvelle idée" d'une idée qu'on vient d'ajouter est
+  maintenant toujours sélectionné en entrant en édition, y compris sur
+  téléphone/tablette. Excalidraw ne le fait de lui-même que pour un
+  clic souris/clavier (jamais au toucher, pour ne pas gêner la
+  sélection tactile ailleurs dans l'appli) — ce qui, combiné à la
+  correction précédente qui fait apparaître le clavier au toucher,
+  laissait le texte non sélectionné sur mobile : la première frappe
+  s'insérait dans "Nouvelle idée" au lieu de le remplacer.
+
 ## Excalidraw-0.18.0+Custom-1.15.1 — 2026-09-28
 
 - **Corrige le chevauchement des idées d'une branche à l'autre.**
