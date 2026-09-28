@@ -3,10 +3,14 @@ import { viewportCoordsToSceneCoords } from "@excalidraw/common";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
+import { placeAvoidingOverlap } from "../data/placement";
+
 import { buildInitialBoardElements } from "./board";
 
 /** Inserts a fresh interactive kanban board centered on the current
- * viewport, the same way pasting or dropping a library item does. */
+ * viewport, the same way pasting or dropping a library item does —
+ * nudged clear of anything already on the canvas there (see
+ * `placeAvoidingOverlap`). */
 export const insertKanbanBoard = (excalidrawAPI: ExcalidrawImperativeAPI) => {
   const appState = excalidrawAPI.getAppState();
   const center = viewportCoordsToSceneCoords(
@@ -17,13 +21,14 @@ export const insertKanbanBoard = (excalidrawAPI: ExcalidrawImperativeAPI) => {
     appState,
   );
 
-  const newElements = buildInitialBoardElements(center.x, center.y);
+  const existingElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+  const newElements = placeAvoidingOverlap(
+    existingElements,
+    buildInitialBoardElements(center.x, center.y),
+  );
 
   excalidrawAPI.updateScene({
-    elements: [
-      ...excalidrawAPI.getSceneElementsIncludingDeleted(),
-      ...newElements,
-    ],
+    elements: [...existingElements, ...newElements],
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 };

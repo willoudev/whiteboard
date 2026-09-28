@@ -6,6 +6,21 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.16.0 — 2026-09-28
+
+- **Insérer un kanban ou un mindmap ne recouvre plus une zone déjà
+  utilisée du canevas.** Jusqu'ici, l'insertion se centrait toujours
+  sur le viewport actuel, sans regarder ce qu'il y avait déjà là —
+  insérer deux mindmaps l'un après l'autre (ou un kanban là où se
+  trouvait déjà un mindmap) les empilait exactement l'un sur l'autre.
+  L'insertion décale maintenant automatiquement la nouvelle structure
+  (à droite ou en dessous de ce qui existe déjà, selon le déplacement
+  le plus court) si elle chevaucherait un élément existant ; sur un
+  canevas vide, rien ne change, elle reste centrée sur le viewport
+  comme avant. La même logique (`placeAvoidingOverlap`) servira pour
+  toute future structure du même genre qu'on ajoutera au menu
+  "Insérer".
+
 ## Excalidraw-0.18.0+Custom-1.15.2 — 2026-09-28
 
 - Le texte "Nouvelle idée" d'une idée qu'on vient d'ajouter est
