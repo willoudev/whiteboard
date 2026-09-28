@@ -6,6 +6,15 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.17.0 — 2026-09-28
+
+- **Appuyer sur Entrée en tapant une idée/sous-idée valide son texte et
+  enchaîne aussitôt sur une nouvelle idée au même niveau** (même sœur),
+  déjà prête à écrire — plus besoin de la souris pour aligner plusieurs
+  idées à la suite. Maj+Entrée continue d'insérer un retour à la ligne
+  dans le texte, comme avant. Sans effet particulier sur le sujet
+  central lui-même (qui n'a pas de "sœurs").
+
 ## Excalidraw-0.18.0+Custom-1.16.0 — 2026-09-28
 
 - **Insérer un kanban ou un mindmap ne recouvre plus une zone déjà
