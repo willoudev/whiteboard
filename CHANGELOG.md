@@ -6,6 +6,28 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.15.1 — 2026-09-28
+
+- **Corrige le chevauchement des idées d'une branche à l'autre.**
+  L'espacement entre deux branches voisines (que ce soit deux idées de
+  premier niveau, ou deux sous-idées d'un même parent) était un
+  écart fixe, sans tenir compte de la taille réelle de chaque branche —
+  une branche qui avait beaucoup grandi (plusieurs sous-idées,
+  elles-mêmes avec des sous-sous-idées) finissait par chevaucher les
+  descendants de sa voisine. L'ajout d'une idée recalcule maintenant
+  l'espace vertical réellement occupé par chaque branche du même
+  groupe (récursivement, sur toute sa descendance) et les répartit sans
+  chevauchement en fonction de leur taille — à chaque niveau de
+  l'arborescence jusqu'à la racine, puisqu'ajouter une idée fait
+  grandir toutes ses branches ancêtres, pas seulement son parent
+  direct.
+- **Sur mobile, ajouter une idée fait maintenant apparaître le clavier
+  immédiatement.** La mise en édition du nouveau texte se déclenchait
+  après un `requestAnimationFrame`, ce qui casse la chaîne de geste
+  utilisateur dont les navigateurs mobiles ont besoin pour ouvrir le
+  clavier automatiquement au focus — elle se déclenche maintenant de
+  façon synchrone, dans le même geste que le clic sur "+".
+
 ## Excalidraw-0.18.0+Custom-1.15.0 — 2026-09-27
 
 - **Les branches du mindmap suivent maintenant un axe horizontal**,

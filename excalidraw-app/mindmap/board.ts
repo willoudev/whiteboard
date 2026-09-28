@@ -21,15 +21,19 @@ import {
   BRANCH_COLORS,
   ROOT_CIRCLE_SIZE,
   ROOT_COLOR,
+  SUBTREE_GAP,
   computeChildCenter,
   connectorGeometry,
   estimateTextWidth,
   fontSizeForDepth,
   nodeInset,
+  packSizesCentered,
+  radiusForDepth,
   rectCenter,
   asRect,
   sideForRootChildIndex,
   type Point,
+  type Side,
 } from "./layout";
 import { isMindmapData, type MindmapNodeData } from "./types";
 
@@ -91,6 +95,111 @@ const findRootBackground = (
       el.customData.role === "rootBackground" &&
       el.customData.nodeId === nodeId,
   );
+
+const buildChildrenMap = (
+  nodes: readonly (ExcalidrawElement & { customData: MindmapNodeData })[],
+) => {
+  const map = new Map<string, (ExcalidrawElement & { customData: MindmapNodeData })[]>();
+  for (const node of nodes) {
+    const parentId = node.customData.parentId;
+    if (parentId) {
+      const list = map.get(parentId) ?? [];
+      list.push(node);
+      map.set(parentId, list);
+    }
+  }
+  return map;
+};
+
+/** The vertical span (top edge to bottom edge) a node's whole subtree
+ * currently occupies, recursively — a sibling with many descendants
+ * needs proportionally more room than one that's still a single leaf.
+ * Used to size each sibling's "box" when packing a sibling group (see
+ * `rebalanceSiblingGroup`), so a branch that's grown doesn't start
+ * overlapping its neighbor branch's own descendants. */
+const subtreeYRange = (
+  nodeId: string,
+  byId: ReadonlyMap<string, ExcalidrawElement>,
+  childrenOf: ReadonlyMap<string, ExcalidrawElement[]>,
+): { minY: number; maxY: number } => {
+  const node = byId.get(nodeId)!;
+  let minY = node.y;
+  let maxY = node.y + node.height;
+  for (const child of childrenOf.get(nodeId) ?? []) {
+    const childRange = subtreeYRange(child.id, byId, childrenOf);
+    minY = Math.min(minY, childRange.minY);
+    maxY = Math.max(maxY, childRange.maxY);
+  }
+  return { minY, maxY };
+};
+
+/** Repositions one sibling group (all children of `parentId`, or — when
+ * `parentId` is the root — just those on `side`) so each sibling gets a
+ * vertical "slot" sized to its own current subtree, packed without
+ * overlap and centered on the branch (see `packSizesCentered`). Only
+ * ever changes each sibling's *own* x/y — cascading that down to its
+ * descendants (so a whole subtree moves together, not just its root) is
+ * `reflowMindmap`'s job, triggered by the resulting stale `lastX/lastY`
+ * the same way a manual drag is.
+ *
+ * Called once per ancestor level on every `addChildNode` (see there):
+ * adding one idea can grow every ancestor's subtree up to the root, so
+ * every level a new leaf's ancestors pass through potentially needs its
+ * own siblings spread further apart too, not just the new leaf's
+ * immediate siblings. */
+const rebalanceSiblingGroup = (
+  elements: readonly ExcalidrawElement[],
+  boardId: string,
+  parentId: string,
+  side?: Side,
+): readonly ExcalidrawElement[] => {
+  const parent = findNode(elements, boardId, parentId);
+  if (!parent) {
+    return elements;
+  }
+  const isRoot = parent.customData.parentId === null;
+  const nodes = getBoardNodes(elements, boardId);
+  const allChildren = nodes.filter((n) => n.customData.parentId === parentId);
+  const siblings = isRoot
+    ? allChildren.filter((_, i) => sideForRootChildIndex(i) === side)
+    : allChildren;
+  if (siblings.length === 0) {
+    return elements;
+  }
+  siblings.sort((a, b) => a.customData.order - b.customData.order);
+
+  const byId = new Map(nodes.map((n) => [n.id, n as ExcalidrawElement]));
+  const childrenOf = buildChildrenMap(nodes);
+  const heights = siblings.map((s) => {
+    const range = subtreeYRange(s.id, byId, childrenOf);
+    return Math.max(s.height, range.maxY - range.minY);
+  });
+  const offsets = packSizesCentered(heights, SUBTREE_GAP);
+
+  const angle = isRoot ? (side === "left" ? Math.PI : 0) : siblings[0].customData.angle;
+  const depth = countDepth(elements, boardId, parentId) + 1;
+  const radius = radiusForDepth(depth);
+  const parentCenter = rectCenter(asRect(parent));
+  const baseX = parentCenter.x + Math.cos(angle) * radius;
+  const baseY = parentCenter.y + Math.sin(angle) * radius;
+  const perpAngle = angle + Math.PI / 2;
+
+  const updates = new Map<string, ExcalidrawElement>();
+  siblings.forEach((sibling, i) => {
+    const offset = offsets[i];
+    const centerX = baseX + Math.cos(perpAngle) * offset;
+    const centerY = baseY + Math.sin(perpAngle) * offset;
+    const newX = centerX - sibling.width / 2;
+    const newY = centerY - sibling.height / 2;
+    if (!numEquals(newX, sibling.x) || !numEquals(newY, sibling.y)) {
+      updates.set(sibling.id, newElementWith(sibling, { x: newX, y: newY }));
+    }
+  });
+  if (updates.size === 0) {
+    return elements;
+  }
+  return elements.map((el) => updates.get(el.id) ?? el);
+};
 
 /** Moves an element and, crucially, its bound label along with it — a
  * programmatic `updateScene` that changes an element's x/y doesn't drag
@@ -567,52 +676,17 @@ export const addChildNode = (
 
   const parentCenter = rectCenter(asRect(parent));
 
-  // Root's children alternate sides (see `sideForRootChildIndex`), so
-  // "this child's siblings" for stacking purposes means only the other
-  // children on the *same side* — every other node has just one set of
-  // siblings (all of the parent's children).
+  // Root's children alternate sides (see `sideForRootChildIndex`) — a
+  // provisional slot for the new node itself; `rebalanceSiblingGroup`
+  // (below, once the node actually exists) repositions it precisely
+  // alongside its siblings, sized to each one's real subtree.
   const side = isRoot ? sideForRootChildIndex(order) : undefined;
-  const sameSideSiblings = isRoot
-    ? siblings.filter((s, i) => sideForRootChildIndex(i) === side)
-    : siblings;
-  const localIndex = sameSideSiblings.length;
-  const localCount = localIndex + 1;
-
   const { center, angle } = computeChildCenter(
     { center: parentCenter, angle: parentData.angle, isRoot, depth: parentDepth },
-    localIndex,
-    localCount,
+    order,
+    order + 1,
     side,
   );
-
-  // A parent's children of the same angle/side are centered as a group
-  // (see `computeChildCenter`), so adding one more shifts where *every*
-  // existing same-side sibling belongs too — without this, older
-  // siblings keep the offset they got when there were fewer of them and
-  // end up crowded/overlapping instead of evenly spread. Left at their
-  // raw x/y with stale `lastX`/`lastY`, so `reflowMindmap` below picks
-  // up the delta and cascades it to each sibling's own descendants,
-  // same as a manual drag.
-  let base: readonly ExcalidrawElement[] = elements;
-  if (sameSideSiblings.length > 0) {
-    const rebalanced = new Map<string, ExcalidrawElement>();
-    sameSideSiblings.forEach((sibling, i) => {
-      const { center: sibCenter } = computeChildCenter(
-        { center: parentCenter, angle: parentData.angle, isRoot, depth: parentDepth },
-        i,
-        localCount,
-        side,
-      );
-      const newX = sibCenter.x - sibling.width / 2;
-      const newY = sibCenter.y - sibling.height / 2;
-      if (!numEquals(newX, sibling.x) || !numEquals(newY, sibling.y)) {
-        rebalanced.set(sibling.id, newElementWith(sibling, { x: newX, y: newY }));
-      }
-    });
-    if (rebalanced.size > 0) {
-      base = elements.map((el) => rebalanced.get(el.id) ?? el);
-    }
-  }
 
   const builder = new MindmapElementsBuilder();
   const childId = newElementId();
@@ -639,7 +713,36 @@ export const addChildNode = (
     toInset: nodeInset(childSize),
   });
 
-  const withNewChild = [...base, ...builder.build()];
+  let withNewChild: readonly ExcalidrawElement[] = [...elements, ...builder.build()];
+
+  // A branch that just grew needs more room than a fixed spacing would
+  // give it, or it starts overlapping its neighbor branch's own
+  // descendants — not just at the level the new idea was added, but at
+  // every ancestor level up to the root, since each one's subtree also
+  // just grew. Walk that whole chain, re-packing each level's sibling
+  // group (see `rebalanceSiblingGroup`) by every sibling's *current*
+  // subtree size. A node's own `order` is stable once assigned, so
+  // re-deriving its root side from it (rather than tracking it through
+  // the walk) stays correct at every step.
+  let node = findNode(withNewChild, boardId, childId)!;
+  while (node.customData.parentId) {
+    const groupParentId = node.customData.parentId;
+    const groupParent = findNode(withNewChild, boardId, groupParentId);
+    if (!groupParent) {
+      break;
+    }
+    const groupSide =
+      groupParent.customData.parentId === null
+        ? sideForRootChildIndex(node.customData.order)
+        : undefined;
+    withNewChild = rebalanceSiblingGroup(withNewChild, boardId, groupParentId, groupSide);
+    const nextNode = findNode(withNewChild, boardId, groupParentId);
+    if (!nextNode) {
+      break;
+    }
+    node = nextNode;
+  }
+
   return { elements: reflowMindmap(withNewChild, boardId), newNodeId: childId };
 };
 

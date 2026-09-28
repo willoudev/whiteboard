@@ -50,8 +50,33 @@ export const radiusForDepth = (childDepth: number) =>
 
 /** Perpendicular spacing between siblings sharing the same parent (and
  * therefore the same outward angle). Generous enough that two default
- * (single-line) labels never touch. */
+ * (single-line) labels never touch. Used only for a sibling group's
+ * *initial* placement (see `buildInitialMindmapElements`) — once a
+ * sibling has descendants of its own, `packSizesCentered` below takes
+ * over and spaces siblings by their actual subtree size instead. */
 export const SIBLING_SPACING = 76;
+
+/** Gap left between two adjacent siblings' subtree "boxes" once each is
+ * sized to its own actual footprint (see `packSizesCentered`) — on top
+ * of their sizes, not instead of them. */
+export const SUBTREE_GAP = 24;
+
+/** Lays `sizes` out end-to-end with `gap` between each pair, centered as
+ * a whole around 0, and returns each one's own center offset — the 1-D
+ * "pack boxes of different sizes without overlap" a mindmap needs at
+ * every branch point: a sibling whose own subtree has grown needs more
+ * room than a fixed per-sibling spacing would give it, or it starts
+ * overlapping its neighbor's descendants instead of just its neighbor's
+ * own label. */
+export const packSizesCentered = (sizes: readonly number[], gap: number): number[] => {
+  const total = sizes.reduce((sum, s) => sum + s, 0) + gap * Math.max(0, sizes.length - 1);
+  let cursor = -total / 2;
+  return sizes.map((size) => {
+    const center = cursor + size / 2;
+    cursor += size + gap;
+    return center;
+  });
+};
 
 /** Fixed-size filled circle drawn behind the root topic, matching the
  * reference image's central node. Deliberately not grown to fit long

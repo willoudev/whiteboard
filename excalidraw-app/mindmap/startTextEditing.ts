@@ -16,26 +16,32 @@ import { asRect, rectCenter } from "./layout";
  * placeholder gets replaced by the very first keystroke with no extra
  * work here.
  *
- * Deferred one animation frame because the node was *just* added via
- * `updateScene` in this same tick — giving the scene a moment to settle
- * first avoids racing that update. */
+ * Must be called *synchronously* within the same pointerdown handler
+ * that added the node — not deferred via `requestAnimationFrame` or a
+ * timeout. Two reasons:
+ * - Mobile browsers only auto-open the on-screen keyboard when the
+ *   focus() call that starts editing happens inside the original
+ *   trusted user-gesture call stack; deferring it even by one frame
+ *   focuses the field silently, with no keyboard.
+ * - It doesn't need the wait anyway: `updateScene` (called right before
+ *   this, to add the node) synchronously replaces the scene's element
+ *   list via `Scene.replaceAllElements` before returning — the node is
+ *   already there for `startTextEditing`'s own hit-test to find. */
 export const startEditingNode = (
   excalidrawAPI: ExcalidrawImperativeAPI,
   nodeId: string,
 ) => {
-  requestAnimationFrame(() => {
-    const node = excalidrawAPI
-      .getSceneElementsIncludingDeleted()
-      .find((el) => el.id === nodeId);
-    if (!node || node.isDeleted) {
-      return;
-    }
-    const center = rectCenter(asRect(node));
-    excalidrawAPI.startTextEditing({
-      sceneX: center.x,
-      sceneY: center.y,
-      insertAtParentCenter: false,
-      container: null,
-    });
+  const node = excalidrawAPI
+    .getSceneElementsIncludingDeleted()
+    .find((el) => el.id === nodeId);
+  if (!node || node.isDeleted) {
+    return;
+  }
+  const center = rectCenter(asRect(node));
+  excalidrawAPI.startTextEditing({
+    sceneX: center.x,
+    sceneY: center.y,
+    insertAtParentCenter: false,
+    container: null,
   });
 };
