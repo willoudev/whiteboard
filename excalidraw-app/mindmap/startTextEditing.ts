@@ -33,7 +33,21 @@ import { asRect, rectCenter } from "./layout";
  *   list via `Scene.replaceAllElements` before returning, and
  *   `startTextEditing` mounts the textarea synchronously too — the node
  *   (and, right after, its editable textarea) already exist by the time
- *   each is needed. */
+ *   each is needed.
+ *
+ * With `container: null`, `startTextEditing` prefers *whatever text
+ * element is currently selected* over the (sceneX, sceneY) position we
+ * give it (see its `getSelectedTextElement(container) || … ||
+ * getTextElementAtPosition(...)` fallback chain in App.tsx) — a leftover
+ * selection from committing a *previous* node's text (Enter/Escape
+ * leaves that node selected) survives a click on one of our own "+"
+ * buttons, since those stay locked/inert to Excalidraw's own selection
+ * handling on purpose. Left alone, that stale selection would win and
+ * editing would reopen on the *wrong* node entirely. `clearSelectionSync`
+ * (unlike a plain `updateScene({ appState: ... })`, whose `setState`
+ * only lands on a later render) forces the position-based lookup to run
+ * instead by guaranteeing the selection is actually gone before this
+ * proceeds. */
 export const startEditingNode = (
   excalidrawAPI: ExcalidrawImperativeAPI,
   nodeId: string,
@@ -44,6 +58,7 @@ export const startEditingNode = (
   if (!node || node.isDeleted) {
     return;
   }
+  excalidrawAPI.clearSelectionSync();
   const center = rectCenter(asRect(node));
   excalidrawAPI.startTextEditing({
     sceneX: center.x,

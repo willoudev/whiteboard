@@ -40,6 +40,9 @@ import { isMindmapData, type MindmapNodeData } from "./types";
 const EPS = 0.01;
 const numEquals = (a: number, b: number) => Math.abs(a - b) < EPS;
 
+export const DEFAULT_ROOT_TEXT = "Sujet central";
+export const DEFAULT_NODE_TEXT = "Nouvelle idée";
+
 const getBoardNodes = (elements: readonly ExcalidrawElement[], boardId: string) =>
   elements.filter(
     (el): el is ExcalidrawElement & { customData: MindmapNodeData } =>
@@ -582,7 +585,16 @@ const addNodeWithChildButton = (
   return { x, y, width: estWidth, height: fontSize };
 };
 
-export const buildInitialMindmapElements = (cx: number, cy: number): ExcalidrawElement[] => {
+/** Builds a mind map with nothing but its central topic — no starter
+ * branches. The caller (see `insertMindmapBoard`) immediately puts the
+ * root into text-editing mode with its default label selected, so
+ * typing a real topic and pressing Enter (see `useMindmapInteractions`)
+ * is the very first thing that happens, and the first *idea* only
+ * exists once the user actually asks for one. */
+export const buildInitialMindmapElements = (
+  cx: number,
+  cy: number,
+): { elements: ExcalidrawElement[]; rootId: string } => {
   const boardId = newBoardId();
   const builder = new MindmapElementsBuilder();
 
@@ -605,49 +617,11 @@ export const buildInitialMindmapElements = (cx: number, cy: number): ExcalidrawE
     color: ROOT_COLOR,
     isRoot: true,
     center: { x: cx, y: cy },
-    text: "Sujet central",
+    text: DEFAULT_ROOT_TEXT,
     depth: 0,
   });
 
-  const branchTexts = ["Idée 1", "Idée 2", "Idée 3"];
-  const branchSides = branchTexts.map((_, i) => sideForRootChildIndex(i));
-  branchTexts.forEach((text, index) => {
-    const color = BRANCH_COLORS[index % BRANCH_COLORS.length];
-    const side = branchSides[index];
-    const sideIndex = branchSides.slice(0, index).filter((s) => s === side).length;
-    const sideCount = branchSides.filter((s) => s === side).length;
-    const { center, angle } = computeChildCenter(
-      { center: { x: cx, y: cy }, angle: 0, isRoot: true, depth: 0 },
-      sideIndex,
-      sideCount,
-      side,
-    );
-    const branchId = newElementId();
-    const branchSize = addNodeWithChildButton(builder, {
-      id: branchId,
-      boardId,
-      parentId: rootId,
-      order: index,
-      angle,
-      color,
-      center,
-      text,
-      depth: 1,
-    });
-    builder.addConnector({
-      id: newElementId(),
-      boardId,
-      parentId: rootId,
-      childId: branchId,
-      from: { x: cx, y: cy },
-      to: center,
-      color,
-      fromInset: ROOT_CIRCLE_SIZE / 2,
-      toInset: nodeInset(branchSize),
-    });
-  });
-
-  return builder.build();
+  return { elements: builder.build(), rootId };
 };
 
 /** Adds a new child node (+ its own "+" button and the connector back to
@@ -698,7 +672,7 @@ export const addChildNode = (
     angle,
     color,
     center,
-    text: "Nouvelle idée",
+    text: DEFAULT_NODE_TEXT,
     depth: childDepth,
   });
   builder.addConnector({
@@ -744,6 +718,27 @@ export const addChildNode = (
   }
 
   return { elements: reflowMindmap(withNewChild, boardId), newNodeId: childId };
+};
+
+/** Marks a node deleted and lets `reflowMindmap` cascade that down to
+ * its own descendants, connectors and button — same cascade a native
+ * Delete keypress on a node already triggers (see `reflowMindmap`'s
+ * doc comment), just invoked directly. Used to drop a node that was
+ * created but never actually turned into a real idea (see
+ * `useMindmapInteractions`'s Enter handling). */
+export const deleteNode = (
+  elements: readonly ExcalidrawElement[],
+  boardId: string,
+  nodeId: string,
+): ExcalidrawElement[] => {
+  const node = findNode(elements, boardId, nodeId);
+  if (!node) {
+    return elements as ExcalidrawElement[];
+  }
+  const next = elements.map((el) =>
+    el.id === nodeId ? newElementWith(el, { isDeleted: true }) : el,
+  );
+  return reflowMindmap(next, boardId);
 };
 
 const countDepth = (

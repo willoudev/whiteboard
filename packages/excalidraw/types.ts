@@ -1421,6 +1421,13 @@ export interface ExcalidrawImperativeAPI {
    * into edit mode — call it with that element's own center coordinates.
    */
   startTextEditing: InstanceType<typeof App>["startTextEditing"];
+  /**
+   * Clears the current selection synchronously (via `flushSync`), so a
+   * `startTextEditing({ container: null, ... })` call made right after
+   * can't have its target overridden by whatever was selected before —
+   * see `startTextEditing`'s own doc comment for why that matters.
+   */
+  clearSelectionSync: InstanceType<typeof App>["clearSelectionSync"];
 }
 
 export type FrameNameBounds = {

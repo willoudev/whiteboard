@@ -6,6 +6,25 @@ sur laquelle ce fork est basé (`packages/excalidraw/package.json`), et
 `Custom-X.Y.Z` suit nos propres changements par-dessus. `Custom` repart à
 `1.0.0` à chaque fois que la base Excalidraw est resynchronisée.
 
+## Excalidraw-0.18.0+Custom-1.18.0 — 2026-09-28
+
+- **Un nouveau mindmap démarre vide : seulement son sujet central**,
+  texte déjà surligné pour le remplacer directement au clavier. Appuyer
+  sur Entrée valide ce texte et crée aussitôt la première idée (au lieu
+  des 3 branches de départ précédentes).
+- **Appuyer sur Entrée sans avoir modifié le texte d'une idée/sous-idée
+  qui vient d'être créée la supprime**, plutôt que d'enchaîner sur une
+  nouvelle idée vide — couvre le cas d'un Entrée appuyé deux fois de
+  suite par erreur, ou juste après un clic sur "+".
+- **Cliquer sur le rond du sujet central permet de déplacer tout le
+  mindmap d'un coup**, au lieu de devoir déplacer chaque idée une par
+  une.
+- Correction d'un bug découvert pendant ces changements : ajouter une
+  sous-idée juste après avoir validé une idée précédente pouvait écrire
+  le nouveau texte sur cette idée précédente au lieu de la nouvelle
+  sous-idée (une sélection restée active y prenait le pas sur la
+  position visée).
+
 ## Excalidraw-0.18.0+Custom-1.17.0 — 2026-09-28
 
 - **Appuyer sur Entrée en tapant une idée/sous-idée valide son texte et

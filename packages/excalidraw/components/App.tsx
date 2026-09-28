@@ -859,6 +859,7 @@ class App extends React.Component<AppProps, AppState> {
       onStateChange: this.onStateChange,
       onEvent: this.onEvent,
       startTextEditing: this.startTextEditing,
+      clearSelectionSync: this.clearSelectionSync,
     };
     return api;
   }
@@ -6887,6 +6888,25 @@ class App extends React.Component<AppProps, AppState> {
       !!this.state.editingTextElement || isTextElement(this.state.newElement)
     );
   }
+
+  /**
+   * Clears the current selection and guarantees, via `flushSync`, that
+   * `this.state.selectedElementIds` reflects it before this returns —
+   * unlike a plain `updateScene({ appState: ... })`, whose `setState`
+   * only takes effect on a later render. Needed before a programmatic
+   * `startTextEditing({ container: null, ... })` call: that method
+   * prefers whatever's currently selected over the position it's given
+   * (see its `getSelectedTextElement` fallback), so a selection left
+   * over from a previous action would otherwise win over the intended
+   * target even though it's called right after.
+   */
+  public clearSelectionSync = () => {
+    flushSync(() => {
+      this.setState((prevState) => ({
+        selectedElementIds: makeNextSelectedElementIds({}, prevState),
+      }));
+    });
+  };
 
   public startTextEditing = ({
     sceneX,

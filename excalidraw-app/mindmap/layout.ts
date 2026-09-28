@@ -50,10 +50,11 @@ export const radiusForDepth = (childDepth: number) =>
 
 /** Perpendicular spacing between siblings sharing the same parent (and
  * therefore the same outward angle). Generous enough that two default
- * (single-line) labels never touch. Used only for a sibling group's
- * *initial* placement (see `buildInitialMindmapElements`) — once a
- * sibling has descendants of its own, `packSizesCentered` below takes
- * over and spaces siblings by their actual subtree size instead. */
+ * (single-line) labels never touch. Used only for a sibling's very
+ * first placement, the moment it's created — once any sibling in the
+ * group has descendants of its own, `packSizesCentered` below takes
+ * over and spaces the whole group by each one's actual subtree size
+ * instead. */
 export const SIBLING_SPACING = 76;
 
 /** Gap left between two adjacent siblings' subtree "boxes" once each is
